@@ -2,9 +2,8 @@ name: Daily Info Collect
 
 on:
   schedule:
-    # 每天北京时间早上8点 = UTC 00:00
     - cron: '0 0 * * *'
-  workflow_dispatch:  # 支持手动触发
+  workflow_dispatch:
 
 jobs:
   collect:
@@ -31,7 +30,7 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      - name: Run collector (single execution)
+      - name: Run collector
         env:
           COLLECTOR_LLM_API_KEY: ${{ secrets.COLLECTOR_LLM_API_KEY }}
           SPRING_MAIL_PASSWORD: ${{ secrets.SPRING_MAIL_PASSWORD }}
