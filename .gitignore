@@ -17,3 +17,13 @@ logs/
 
 # Maven wrapper
 .mvn/wrapper/maven-wrapper.jar
+
+# Test/debug files
+src/main/resources/*.png
+src/main/resources/*.html
+
+# Local config with secrets
+src/main/resources/application-local.yml
+
+# Claude
+.claude/

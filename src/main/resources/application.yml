@@ -10,7 +10,7 @@ spring:
     host: smtp.qq.com
     port: 465
     username: 928237051@qq.com
-    password: xjdbjmnplqskbdbb  # QQ邮箱需要使用授权码，不是登录密码
+    password: ${SPRING_MAIL_PASSWORD:}  # QQ邮箱授权码，通过环境变量或local配置注入
     properties:
       mail:
         smtp:
@@ -28,7 +28,7 @@ collector:
   llm:
     api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
     # api-key: sk-your-dashscope-api-key    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
-    api-key: sk-6a23ae7b7cb54690bf965291c6e45d58    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
+    api-key: ${COLLECTOR_LLM_API_KEY:}    # 阿里云百炼平台 API Key，通过环境变量或local配置注入
     model: qwen3.5-plus                      # 推荐 qwen-plus（性价比高），也可用 qwen-turbo / qwen-max
     max-tokens: 4096                      # 最大输出 token 数
     temperature: 0.3                      # 低温度保证摘要准确性
@@ -36,11 +36,11 @@ collector:
   # 通知配置
   notify:
     # 邮件收件人列表（多个用逗号分隔）
-    mail-to: 1095971161@qq.com
+    mail-to:
     # 企业微信机器人 Webhook 地址（可选，留空则不推送微信）
     wechat-webhook: ""
     # PushPlus 个人微信推送 Token（可选，关注PushPlus公众号获取）
-    pushplus-token: cdf94b81ec1b4949a47d08afee141496
+    pushplus-token: ${PUSHPLUS_TOKEN:}  # PushPlus Token，通过环境变量或local配置注入
 
   # 定时任务 Cron 表达式（默认每天早上 8:30 执行）
   schedule:
