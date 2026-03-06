@@ -1,0 +1,122 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: web-info-collector
+
+  # 邮件配置（以QQ邮箱为例，其他邮箱修改host和port即可）
+  mail:
+    host: smtp.qq.com
+    port: 465
+    username: 928237051@qq.com
+    password: xjdbjmnplqskbdbb  # QQ邮箱需要使用授权码，不是登录密码
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          starttls:
+            enable: true
+            required: true
+    default-encoding: UTF-8
+
+# ======================== 采集系统配置 ========================
+collector:
+  # LLM 配置（通义千问 Qwen，兼容 OpenAI 接口格式）
+  llm:
+    api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+    # api-key: sk-your-dashscope-api-key    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
+    api-key: sk-6a23ae7b7cb54690bf965291c6e45d58    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
+    model: qwen3.5-plus                      # 推荐 qwen-plus（性价比高），也可用 qwen-turbo / qwen-max
+    max-tokens: 4096                      # 最大输出 token 数
+    temperature: 0.3                      # 低温度保证摘要准确性
+
+  # 通知配置
+  notify:
+    # 邮件收件人列表（多个用逗号分隔）
+    mail-to: 1095971161@qq.com
+    # 企业微信机器人 Webhook 地址（可选，留空则不推送微信）
+    wechat-webhook: ""
+    # PushPlus 个人微信推送 Token（可选，关注PushPlus公众号获取）
+    pushplus-token: cdf94b81ec1b4949a47d08afee141496
+
+  # 定时任务 Cron 表达式（默认每天早上 8:30 执行）
+  schedule:
+    cron: "0 0 6 * * ?"
+
+  # 爬虫配置
+  crawler:
+    # 请求超时时间（毫秒）
+    timeout: 15000
+    # 请求间隔（毫秒），避免被封IP
+    request-interval: 2000
+    # 最大抓取文章数（每个网站）
+    max-articles-per-site: 20
+    # User-Agent
+    user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+  # 需要监控的网站列表（可在此预配置，也可通过 API 动态添加）
+  sites:
+    - name: 国家金融监督管理总局
+      url: https://www.nfra.gov.cn
+      # 使用API模式（该网站为AngularJS动态渲染，Jsoup无法直接解析）
+      api-mode: true
+      api-url: https://www.nfra.gov.cn/cbircweb/DocInfo/SelectDocByItemIdAndChild
+      detail-url-template: "https://www.nfra.gov.cn/cn/view/pages/ItemDetail.html?docId={docId}&itemId={itemId}"
+      content-selector: ".Section_content"
+      api-items:
+        - name: 监管动态
+          item-id: 915
+        - name: 领导活动及讲话
+          item-id: 919
+        - name: 新闻发布会及访谈
+          item-id: 920
+        - name: 政策解读
+          item-id: 916
+      enabled: true
+
+    - name: 中国人民银行反洗钱局
+      url: https://www.pbc.gov.cn/fanxiqianju/135153/index.html
+      # HTML模式 + 多栏目子页面
+      list-selector: "td[height=22][align=left]:has(font.newslist_style)"
+      title-selector: "font.newslist_style a"
+      link-selector: "font.newslist_style a"
+      date-selector: "span.hui12"
+      date-format: "yyyy-MM-dd"
+      content-selector: "#zoom"
+      next-page-selector: "a.pagingNormal:contains(下一页)"
+      sub-pages:
+        - name: 工作信息
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135155/index.html
+        - name: 法规政策
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135173/index.html
+        - name: 反洗钱工作部际联席会议
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135159/index.html
+        - name: 反洗钱监督管理
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135163/index.html
+        - name: 反洗钱调查与案件查处
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135178/index.html
+        - name: 国际合作与交流-交流与合作
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135241/135244/index.html
+        - name: 国际合作与交流-国际评估
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135241/135247/index.html
+        - name: 国际合作与交流-国际标准
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135241/135250/index.html
+        - name: 国际合作与交流-其他
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135241/135253/index.html
+        - name: 风险提示与金融制裁
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135267/index.html
+        - name: 反洗钱报告
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135282/index.html
+        - name: 反洗钱宣传教育
+          url: https://www.pbc.gov.cn/fanxiqianju/135153/135175/index.html
+      enabled: true
+
+logging:
+  level:
+    com.info.collector: DEBUG
+    org.apache.pdfbox: ERROR
+  file:
+    name: logs/web-info-collector.log

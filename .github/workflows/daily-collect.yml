@@ -1,0 +1,46 @@
+name: Daily Info Collect
+
+on:
+  schedule:
+    # 每天北京时间早上8点 = UTC 00:00
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Run collector (single execution)
+        env:
+          COLLECTOR_LLM_API_KEY: ${{ secrets.COLLECTOR_LLM_API_KEY }}
+          SPRING_MAIL_PASSWORD: ${{ secrets.SPRING_MAIL_PASSWORD }}
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+        run: |
+          java -jar target/web-info-collector-1.0.0.jar \
+            --run-once \
+            --keyword=反洗钱,模型 \
+            --days=1 \
+            --collector.llm.api-key=$COLLECTOR_LLM_API_KEY \
+            --spring.mail.password=$SPRING_MAIL_PASSWORD \
+            --collector.notify.pushplus-token=$PUSHPLUS_TOKEN
