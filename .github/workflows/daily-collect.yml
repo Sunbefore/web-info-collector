@@ -38,7 +38,7 @@ jobs:
         run: |
           java -jar target/web-info-collector-1.0.0.jar \
             --run-once \
-            --keyword=反洗钱,模型 \
+            --keyword=反洗钱,模型,反诈,风险管理 \
             --days=1 \
             --collector.llm.api-key=$COLLECTOR_LLM_API_KEY \
             --spring.mail.password=$SPRING_MAIL_PASSWORD \

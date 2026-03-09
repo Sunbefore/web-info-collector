@@ -206,10 +206,16 @@ public class CrawlerService {
             // 多栏目模式：遍历子页面
             for (SiteConfig.SubPage subPage : siteConfig.getSubPages()) {
                 try {
-                    List<Article> subArticles = crawlHtmlListPage(
-                            subPage.getUrl(), siteConfig, crawlerConfig,
-                            siteConfig.getName() + " - " + subPage.getName(),
-                            startDate, endDate);
+                    String sourceName = siteConfig.getName() + " - " + subPage.getName();
+                    List<Article> subArticles;
+                    if (StrUtil.isNotBlank(subPage.getJsonUrl())) {
+                        // JSON接口模式
+                        subArticles = crawlJsonSubPage(subPage, siteConfig, crawlerConfig, sourceName, startDate, endDate);
+                    } else {
+                        // HTML列表模式
+                        subArticles = crawlHtmlListPage(
+                                subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate);
+                    }
                     articles.addAll(subArticles);
                 } catch (Exception e) {
                     log.error("抓取栏目 [{}] 失败: {}", subPage.getName(), e.getMessage(), e);
@@ -232,6 +238,70 @@ public class CrawlerService {
     }
 
     /**
+     * JSON接口模式：直接请求JSON数组获取文章列表
+     * 适用于返回简单JSON数组的接口（如gov.cn时政要闻）
+     */
+    private List<Article> crawlJsonSubPage(SiteConfig.SubPage subPage, SiteConfig siteConfig,
+                                            CollectorProperties.CrawlerConfig crawlerConfig,
+                                            String sourceName, Date startDate, Date endDate) throws Exception {
+        List<Article> articles = new ArrayList<>();
+        log.info("抓取JSON接口: {} - {}", sourceName, subPage.getJsonUrl());
+
+        String response = HttpUtil.createGet(subPage.getJsonUrl())
+                .header("User-Agent", crawlerConfig.getUserAgent())
+                .timeout(crawlerConfig.getTimeout())
+                .execute()
+                .body();
+
+        JSONArray jsonArray = JSONArray.parseArray(response);
+        if (jsonArray == null || jsonArray.isEmpty()) {
+            log.warn("[{}] JSON接口返回空数据", sourceName);
+            return articles;
+        }
+
+        String titleField = StrUtil.isNotBlank(subPage.getJsonTitleField()) ? subPage.getJsonTitleField() : "title";
+        String linkField = StrUtil.isNotBlank(subPage.getJsonLinkField()) ? subPage.getJsonLinkField() : "link";
+        String dateField = StrUtil.isNotBlank(subPage.getJsonDateField()) ? subPage.getJsonDateField() : "pubDate";
+
+        for (int i = 0; i < jsonArray.size(); i++) {
+            JSONObject item = jsonArray.getJSONObject(i);
+            String title = item.getString(titleField);
+            String link = item.getString(linkField);
+            String dateStr = item.getString(dateField);
+
+            if (StrUtil.isBlank(title) || StrUtil.isBlank(link)) continue;
+
+            // 日期过滤
+            String normalizedDate = normalizeDateStr(dateStr, "yyyy-MM-dd");
+            if (StrUtil.isNotBlank(normalizedDate)) {
+                try {
+                    Date articleDate = DateUtil.parse(normalizedDate, "yyyy-MM-dd");
+                    if (articleDate.before(startDate)) continue;
+                    if (articleDate.after(endDate)) continue;
+                } catch (Exception ignored) {}
+            }
+
+            Article article = new Article();
+            article.setTitle(title);
+            article.setUrl(encodeUrl(link));
+            article.setPublishDate(StrUtil.isNotBlank(normalizedDate) ? normalizedDate : dateStr);
+            article.setSourceSite(sourceName);
+
+            // 获取详情页内容
+            Thread.sleep(crawlerConfig.getRequestInterval());
+            fetchArticleDetail(article, siteConfig, crawlerConfig);
+
+            articles.add(article);
+            log.info("成功抓取文章: {} ({})", title, article.getPublishDate());
+
+            if (articles.size() >= crawlerConfig.getMaxArticlesPerSite()) break;
+        }
+
+        log.info("[{}] JSON接口抓取完成，共 {} 篇文章", sourceName, articles.size());
+        return articles;
+    }
+
+    /**
      * 抓取单个HTML列表页（支持分页翻页）
      *
      * @param pageUrl       列表页URL
@@ -247,6 +317,7 @@ public class CrawlerService {
         List<Article> articles = new ArrayList<>();
         String currentUrl = pageUrl;
         int pageNum = 1;
+        int pageIndex = 0; // 用于URL模式翻页（index.htm=0, index_1.htm=1, ...）
         boolean hasMorePages = true;
 
         while (hasMorePages && currentUrl != null) {
@@ -318,7 +389,13 @@ public class CrawlerService {
             }
 
             // 检查是否有下一页
-            currentUrl = findNextPageUrl(listPage, siteConfig, currentUrl);
+            if (StrUtil.isNotBlank(siteConfig.getNextPagePattern())) {
+                // URL模式翻页：index.htm -> index_1.htm -> index_2.htm
+                pageIndex++;
+                currentUrl = buildNextPageUrl(pageUrl, siteConfig.getNextPagePattern(), pageIndex);
+            } else {
+                currentUrl = findNextPageUrl(listPage, siteConfig, currentUrl);
+            }
             if (currentUrl == null) {
                 hasMorePages = false;
             } else {
@@ -352,6 +429,22 @@ public class CrawlerService {
         article.setPublishDate(StrUtil.isNotBlank(normalizedDate) ? normalizedDate : dateStr);
         article.setSourceSite(sourceName);
         return article;
+    }
+
+    /**
+     * 根据URL模式构建下一页URL
+     * 例如 baseUrl=http://xxx/caizhengxinwen/, pattern=index_{page}.htm
+     * pageIndex=1 -> http://xxx/caizhengxinwen/index_1.htm
+     */
+    private String buildNextPageUrl(String baseUrl, String pattern, int pageIndex) {
+        String pageFile = pattern.replace("{page}", String.valueOf(pageIndex));
+        // baseUrl 可能以 / 结尾或以 index.htm 结尾
+        if (baseUrl.endsWith("/")) {
+            return baseUrl + pageFile;
+        } else {
+            // 替换最后一个文件名
+            return baseUrl.replaceAll("[^/]*$", pageFile);
+        }
     }
 
     /**
@@ -408,6 +501,13 @@ public class CrawlerService {
 
             if (StrUtil.isNotBlank(siteConfig.getContentSelector())) {
                 Element contentEl = detailPage.selectFirst(siteConfig.getContentSelector());
+                // 备用选择器：当主选择器找不到时尝试常见的内容区域
+                if (contentEl == null) {
+                    for (String fallback : new String[]{"#UCAP-CONTENT", ".TRS_Editor", ".Article_61 .content", ".new_text span#ReportIDtext", "#zoom", ".article-content", ".detail-content"}) {
+                        contentEl = detailPage.selectFirst(fallback);
+                        if (contentEl != null) break;
+                    }
+                }
                 if (contentEl != null) {
                     article.setContent(contentEl.text());
 

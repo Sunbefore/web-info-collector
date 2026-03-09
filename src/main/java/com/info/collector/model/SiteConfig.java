@@ -44,6 +44,9 @@ public class SiteConfig {
     /** 分页选择器（如 "a:contains(下一页)"），配置后自动翻页 */
     private String nextPageSelector;
 
+    /** URL模式分页（如 "index_{page}.htm"），{page}从1开始递增，首页为index.htm */
+    private String nextPagePattern;
+
     // ========== API 模式配置 ==========
 
     /** 是否使用API模式（直接请求JSON接口获取数据） */
@@ -75,5 +78,13 @@ public class SiteConfig {
         private String name;
         /** 栏目列表页URL */
         private String url;
+        /** JSON接口URL（配置此项时使用JSON模式获取文章列表） */
+        private String jsonUrl;
+        /** JSON中标题字段名，默认title */
+        private String jsonTitleField;
+        /** JSON中链接字段名，默认link */
+        private String jsonLinkField;
+        /** JSON中日期字段名，默认pubDate */
+        private String jsonDateField;
     }
 }
