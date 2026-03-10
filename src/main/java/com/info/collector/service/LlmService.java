@@ -274,21 +274,35 @@ public class LlmService {
 
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toJSONString(), headers);
 
-            log.info("调用 LLM [{}]", purpose);
-            ResponseEntity<String> response = restTemplate.exchange(
-                    llmConfig.getApiUrl(), HttpMethod.POST, entity, String.class);
+            // 最多重试3次
+            int maxRetries = 3;
+            for (int retry = 0; retry < maxRetries; retry++) {
+                try {
+                    log.info("调用 LLM [{}]{}", purpose, retry > 0 ? " (第" + (retry + 1) + "次重试)" : "");
+                    ResponseEntity<String> response = restTemplate.exchange(
+                            llmConfig.getApiUrl(), HttpMethod.POST, entity, String.class);
 
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                JSONObject result = JSON.parseObject(response.getBody());
-                JSONArray choices = result.getJSONArray("choices");
-                if (choices != null && !choices.isEmpty()) {
-                    return choices.getJSONObject(0)
-                            .getJSONObject("message")
-                            .getString("content");
+                    if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                        JSONObject result = JSON.parseObject(response.getBody());
+                        JSONArray choices = result.getJSONArray("choices");
+                        if (choices != null && !choices.isEmpty()) {
+                            return choices.getJSONObject(0)
+                                    .getJSONObject("message")
+                                    .getString("content");
+                        }
+                    }
+
+                    log.warn("LLM API 返回异常: status={}", response.getStatusCode());
+                } catch (Exception retryEx) {
+                    log.warn("LLM 调用失败 (第{}次): {}", retry + 1, retryEx.getMessage());
+                    if (retry < maxRetries - 1) {
+                        Thread.sleep(5000); // 重试前等5秒
+                    } else {
+                        throw retryEx;
+                    }
                 }
             }
 
-            log.warn("LLM API 返回异常: status={}", response.getStatusCode());
             return "（LLM 摘要生成失败）";
 
         } catch (Exception e) {
