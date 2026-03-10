@@ -69,7 +69,7 @@ public class LlmService {
         StringBuilder sb = new StringBuilder();
         sb.append("你是一位专业的金融监管资讯分析师。请判断以下文章与哪些关键词主题相关。\n\n");
         sb.append("关键词列表：").append(keywords).append("\n\n");
-        sb.append("判断标准：文章的核心主题必须与该关键词直接相关才算匹配。仅仅在文中提及或附带涉及不算匹配，必须是文章主要讨论的内容。\n\n");
+        sb.append("判断标准：只要文章内容与该关键词相关即算匹配，包括直接讨论、政策涉及、案例提及等。不要求是文章的核心主题，只要有实质性关联即可。\n\n");
         sb.append("【文章标题】").append(article.getTitle()).append("\n");
         sb.append("【文章正文】\n");
 
