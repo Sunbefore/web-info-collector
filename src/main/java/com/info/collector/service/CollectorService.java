@@ -200,8 +200,13 @@ public class CollectorService {
                 }
 
                 // 生成该关键词下的整体摘要
-                String overallSummary = llmService.summarizeArticles(kwArticles, kw, kw);
-                result.setOverallSummary(overallSummary);
+                try {
+                    String overallSummary = llmService.summarizeArticles(kwArticles, kw, kw);
+                    result.setOverallSummary(overallSummary);
+                } catch (Exception e) {
+                    log.warn("关键词 [{}] 整体摘要生成失败: {}", kw, e.getMessage());
+                    result.setOverallSummary("（整体摘要生成失败）");
+                }
             }
 
             results.add(result);
