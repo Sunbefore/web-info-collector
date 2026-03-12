@@ -24,14 +24,20 @@ spring:
 
 # ======================== 采集系统配置 ========================
 collector:
-  # LLM 配置（通义千问 Qwen，兼容 OpenAI 接口格式）
+  # LLM 配置（支持多模型切换：qwen / glm）
   llm:
+    provider: glm  # 默认使用 qwen，可改为 glm
+    # Qwen 配置
     api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
     # api-key: sk-your-dashscope-api-key    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
     api-key: ${COLLECTOR_LLM_API_KEY:}    # 阿里云百炼平台 API Key，通过环境变量或local配置注入
     model: qwen3.5-plus                      # 推荐 qwen-plus（性价比高），也可用 qwen-turbo / qwen-max
     max-tokens: 4096                      # 最大输出 token 数
     temperature: 0.3                      # 低温度保证摘要准确性
+    # GLM 配置（智谱 AI）
+    glm-api-url: https://open.bigmodel.cn/api/paas/v4/chat/completions
+    glm-api-key: ${COLLECTOR_GLM_API_KEY:}  # 智谱 AI API Key，通过环境变量或local配置注入
+    glm-model: glm-5                    # 推荐 glm-5-plus，也可用 glm-4-plus
 
   # 通知配置
   notify:

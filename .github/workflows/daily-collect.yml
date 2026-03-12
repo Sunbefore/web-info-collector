@@ -33,6 +33,7 @@ jobs:
       - name: Run collector
         env:
           COLLECTOR_LLM_API_KEY: ${{ secrets.COLLECTOR_LLM_API_KEY }}
+          COLLECTOR_GLM_API_KEY: ${{ secrets.COLLECTOR_GLM_API_KEY }}
           SPRING_MAIL_PASSWORD: ${{ secrets.SPRING_MAIL_PASSWORD }}
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         run: |
@@ -41,5 +42,6 @@ jobs:
             --keyword=反洗钱,模型,反诈,风险管理 \
             --days=1 \
             --collector.llm.api-key=$COLLECTOR_LLM_API_KEY \
+            --collector.llm.glm-api-key=$COLLECTOR_GLM_API_KEY \
             --spring.mail.password=$SPRING_MAIL_PASSWORD \
             --collector.notify.pushplus-token=$PUSHPLUS_TOKEN

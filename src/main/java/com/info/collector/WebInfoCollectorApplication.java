@@ -3,6 +3,7 @@ package com.info.collector;
 import cn.hutool.core.date.DateUtil;
 import com.info.collector.service.CollectorService;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -33,6 +34,17 @@ public class WebInfoCollectorApplication implements CommandLineRunner {
     private ConfigurableApplicationContext applicationContext;
 
     public static void main(String[] args) {
+        // 解析 --model 参数（必须在 Spring 初始化前设置）
+        for (String arg : args) {
+            if (arg.startsWith("--model=")) {
+                String modelParam = arg.substring("--model=".length());
+                // 设置到系统属性，让 Spring 可以读取
+                System.setProperty("collector.llm.provider", modelParam);
+                // 使用 LoggerFactory 获取 logger，因为此时 @Slf4j 的 log 还未初始化
+                LoggerFactory.getLogger(WebInfoCollectorApplication.class)
+                        .info("命令行参数设置模型提供商: {}", modelParam);
+            }
+        }
         SpringApplication.run(WebInfoCollectorApplication.class, args);
     }
 

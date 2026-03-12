@@ -240,10 +240,24 @@ public class LlmService {
     private String callLlm(String prompt, String purpose) {
         CollectorProperties.LlmConfig llmConfig = properties.getLlm();
 
+        // 根据 provider 选择配置
+        String apiUrl, apiKey, model;
+        if ("glm".equalsIgnoreCase(llmConfig.getProvider())) {
+            apiUrl = llmConfig.getGlmApiUrl();
+            apiKey = llmConfig.getGlmApiKey();
+            model = llmConfig.getGlmModel();
+            log.info("使用 GLM 模型: {}", model);
+        } else {
+            apiUrl = llmConfig.getApiUrl();
+            apiKey = llmConfig.getApiKey();
+            model = llmConfig.getModel();
+            log.info("使用 Qwen 模型: {}", model);
+        }
+
         try {
             // 构建请求体
             JSONObject requestBody = new JSONObject();
-            requestBody.put("model", llmConfig.getModel());
+            requestBody.put("model", model);
             requestBody.put("max_tokens", llmConfig.getMaxTokens());
             requestBody.put("temperature", llmConfig.getTemperature());
 
@@ -260,16 +274,18 @@ public class LlmService {
 
             requestBody.put("messages", messages);
 
-            // 关闭深度思考
-            JSONObject extraBody = new JSONObject();
-            extraBody.put("enable_thinking", false);
-            requestBody.put("extra_body", extraBody);
+            // 关闭深度思考（仅 Qwen 支持）
+            if (!"glm".equalsIgnoreCase(llmConfig.getProvider())) {
+                JSONObject extraBody = new JSONObject();
+                extraBody.put("enable_thinking", false);
+                requestBody.put("extra_body", extraBody);
+            }
 
             // 设置请求头
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            if (StrUtil.isNotBlank(llmConfig.getApiKey())) {
-                headers.set("Authorization", "Bearer " + llmConfig.getApiKey());
+            if (StrUtil.isNotBlank(apiKey)) {
+                headers.set("Authorization", "Bearer " + apiKey);
             }
 
             HttpEntity<String> entity = new HttpEntity<>(requestBody.toJSONString(), headers);
@@ -280,7 +296,7 @@ public class LlmService {
                 try {
                     log.info("调用 LLM [{}]{}", purpose, retry > 0 ? " (第" + (retry + 1) + "次重试)" : "");
                     ResponseEntity<String> response = restTemplate.exchange(
-                            llmConfig.getApiUrl(), HttpMethod.POST, entity, String.class);
+                            apiUrl, HttpMethod.POST, entity, String.class);
 
                     if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
                         JSONObject result = JSON.parseObject(response.getBody());

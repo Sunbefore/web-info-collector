@@ -36,6 +36,8 @@ public class CollectorProperties {
 
     @Data
     public static class LlmConfig {
+        /** 模型提供商 (qwen / glm) */
+        private String provider = "qwen";
         /** LLM API 地址（通义千问 DashScope 兼容接口） */
         private String apiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
         /** API Key（阿里云百炼平台） */
@@ -46,6 +48,14 @@ public class CollectorProperties {
         private int maxTokens = 4096;
         /** 温度参数 */
         private double temperature = 0.3;
+
+        // ==================== GLM 配置预设 ====================
+        /** GLM API 地址（智谱 AI） */
+        private String glmApiUrl = "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+        /** GLM API Key（智谱 AI 平台） */
+        private String glmApiKey;
+        /** GLM 模型名称（glm-5-plus / glm-4-plus） */
+        private String glmModel = "glm-5-plus";
     }
 
     @Data
