@@ -26,7 +26,7 @@ spring:
 collector:
   # LLM 配置（支持多模型切换：qwen / glm）
   llm:
-    provider: glm  # 默认使用 qwen，可改为 glm
+    provider: qwen  # 默认使用 qwen，可改为 glm
     # Qwen 配置
     api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
     # api-key: sk-your-dashscope-api-key    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
