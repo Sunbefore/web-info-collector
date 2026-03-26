@@ -52,7 +52,6 @@ public class SeleniumService {
                 // 反检测配置
                 options.addArguments("--disable-blink-features=AutomationControlled");
                 options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
-                options.setExperimentalOption("useAutomationExtension", false);
 
                 // 基础配置
                 options.addArguments("--no-sandbox");
@@ -60,6 +59,13 @@ public class SeleniumService {
                 options.addArguments("--disable-gpu");
                 options.addArguments("--window-size=1920,1080");
                 options.addArguments("--lang=zh-CN");
+
+                // 解决 WebSocket 连接问题
+                options.addArguments("--disable-extensions");
+                options.addArguments("--disable-plugins");
+                options.addArguments("--disable-software-rasterizer");
+                options.addArguments("--disable-web-security");
+                options.addArguments("--remote-allow-origins=*");
 
                 // 设置 User-Agent
                 options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
