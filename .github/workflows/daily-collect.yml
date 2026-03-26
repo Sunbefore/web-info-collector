@@ -12,7 +12,7 @@ on:
       keyword:
         description: '关键词(逗号分隔)'
         required: false
-        default: '反洗钱,模型,反诈,风险管理,金融法'
+        default: '反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理'
 
 jobs:
   collect:
@@ -48,7 +48,7 @@ jobs:
         run: |
           java -jar target/web-info-collector-1.0.0.jar \
             --run-once \
-            --keyword=${{ github.event.inputs.keyword || '反洗钱,模型,反诈,风险管理,金融法' }} \
+            --keyword=${{ github.event.inputs.keyword || '反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理' }} \
             --days=${{ github.event.inputs.days || '1' }} \
             --collector.llm.api-key=$COLLECTOR_LLM_API_KEY \
             --collector.llm.glm-api-key=$COLLECTOR_GLM_API_KEY \
