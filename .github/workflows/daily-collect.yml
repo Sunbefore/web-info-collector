@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: '30 0 * * *'
   workflow_dispatch:
+    inputs:
+      days:
+        description: '查询天数'
+        required: false
+        default: '1'
+      keyword:
+        description: '关键词(逗号分隔)'
+        required: false
+        default: '反洗钱,模型,反诈,风险管理,金融法'
 
 jobs:
   collect:
@@ -39,8 +48,8 @@ jobs:
         run: |
           java -jar target/web-info-collector-1.0.0.jar \
             --run-once \
-            --keyword=反洗钱,模型,反诈,风险管理,金融法 \
-            --days=1 \
+            --keyword=${{ github.event.inputs.keyword || '反洗钱,模型,反诈,风险管理,金融法' }} \
+            --days=${{ github.event.inputs.days || '1' }} \
             --collector.llm.api-key=$COLLECTOR_LLM_API_KEY \
             --collector.llm.glm-api-key=$COLLECTOR_GLM_API_KEY \
             --spring.mail.password=$SPRING_MAIL_PASSWORD \
