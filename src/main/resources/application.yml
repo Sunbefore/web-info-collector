@@ -124,8 +124,10 @@ collector:
     - name: 中华人民共和国财政部
       url: http://www.mof.gov.cn
       # HTML模式 + 多栏目子页面 + URL模式翻页
-      # 注意：网站已改版，使用新的选择器
-      list-selector: "ul.xwbd_lianbolistfrcon > li"
+      # 注意：不同页面使用不同的选择器
+      # ul.xwfb_listbox > li: 主页面（财政新闻等）
+      # ul.xwbd_lianbolistfrcon > li: 子页面（通知公告等）
+      list-selector: "ul.xwfb_listbox > li, ul.xwbd_lianbolistfrcon > li"
       title-selector: "a"
       link-selector: "a"
       date-selector: "span"
@@ -139,19 +141,19 @@ collector:
           json-link-field: link
           json-date-field: pubDate
         - name: 财政新闻
-          url: http://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/caizhengxinwen/
+          url: http://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/
         - name: 政策发布
-          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/zhengcefabu/
+          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/
         - name: 政策解读
-          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcejiedu/zhengcejiedu/
+          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcejiedu/
         - name: 财经视点
-          url: http://www.mof.gov.cn/zhengwuxinxi/caijingshidian/zyzfmhwz/
+          url: http://www.mof.gov.cn/zhengwuxinxi/caijingshidian/
         - name: 财经论坛
-          url: http://www.mof.gov.cn/gkml/diaochayanjiu/diaochayanjiu/
+          url: http://www.mof.gov.cn/gkml/diaochayanjiu/
         - name: 通知公告
           url: http://www.mof.gov.cn/gkml/bulinggonggao/tongzhitonggao/
         - name: 全国财政新闻联播
-          url: http://www.mof.gov.cn/zhengwuxinxi/xinwenlianbo/xinwenlianbo/
+          url: http://www.mof.gov.cn/zhengwuxinxi/xinwenlianbo/
       enabled: true
 
     - name: 中央纪委国家监委网站-头条
