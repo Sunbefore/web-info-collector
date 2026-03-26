@@ -64,6 +64,12 @@ public class SiteConfig {
     /** 是否启用该网站采集 */
     private boolean enabled = true;
 
+    /** 是否使用 Selenium 模式（用于有反爬虫保护的网站） */
+    private boolean seleniumMode = false;
+
+    /** Selenium 模式下等待页面加载的秒数 */
+    private int seleniumWaitSeconds = 10;
+
     @Data
     public static class ApiItem {
         /** 栏目名称 */

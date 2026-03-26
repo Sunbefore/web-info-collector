@@ -40,6 +40,9 @@ public class CrawlerService {
     @Resource
     private CollectorProperties properties;
 
+    @Resource
+    private SeleniumService seleniumService;
+
     /**
      * 抓取指定网站的文章
      * 只做时间过滤和内容抓取，关键词相关性由LLM判断
@@ -339,31 +342,28 @@ public class CrawlerService {
             log.info("抓取列表页: {} (第{}页) - {}", sourceName, pageNum, currentUrl);
 
             final String finalCurrentUrl = currentUrl;
-            Document listPage = retryTask(() -> Jsoup.connect(finalCurrentUrl)
-                    .userAgent(crawlerConfig.getUserAgent())
-                    .timeout(crawlerConfig.getTimeout())
-                    .ignoreHttpErrors(true)
-                    .followRedirects(true)
-                    .sslSocketFactory(createTrustAllSslSocketFactory())
-                    .get(), "HTML列表页请求-" + sourceName + "-第" + pageNum + "页");
+            Document listPage;
+
+            // 根据配置选择使用 Selenium 或 Jsoup
+            if (siteConfig.isSeleniumMode()) {
+                log.info("[{}] 使用 Selenium 模式抓取", sourceName);
+                listPage = seleniumService.getPageDocument(finalCurrentUrl, siteConfig.getSeleniumWaitSeconds());
+            } else {
+                listPage = retryTask(() -> Jsoup.connect(finalCurrentUrl)
+                        .userAgent(crawlerConfig.getUserAgent())
+                        .timeout(crawlerConfig.getTimeout())
+                        .ignoreHttpErrors(true)
+                        .followRedirects(true)
+                        .sslSocketFactory(createTrustAllSslSocketFactory())
+                        .get(), "HTML列表页请求-" + sourceName + "-第" + pageNum + "页");
+            }
 
             if (listPage == null) {
                 log.warn("列表页请求失败，跳过: {}", currentUrl);
                 break;
             }
 
-            // DEBUG: 打印选择器和部分HTML
-            log.info("[{}] 使用选择器: {}", sourceName, siteConfig.getListSelector());
-
             Elements listItems = listPage.select(siteConfig.getListSelector());
-
-            // DEBUG: 如果没找到，尝试打印页面中td元素的数量
-            if (listItems.isEmpty()) {
-                log.info("[{}] 主选择器未命中，页面中 td.unline 数量: {}, td[height=22] 数量: {}",
-                        sourceName,
-                        listPage.select("td.unline").size(),
-                        listPage.select("td[height=22]").size());
-            }
             if (listItems.isEmpty()) {
                 listItems = findFallbackListItems(listPage, currentUrl);
                 if (!listItems.isEmpty()) {
@@ -622,13 +622,20 @@ public class CrawlerService {
      */
     private void fetchArticleDetail(Article article, SiteConfig siteConfig,
                                      CollectorProperties.CrawlerConfig crawlerConfig) {
-        Document detailPage = retryTask(() -> Jsoup.connect(article.getUrl())
-                .userAgent(crawlerConfig.getUserAgent())
-                .timeout(crawlerConfig.getTimeout())
-                .ignoreHttpErrors(true)
-                .followRedirects(true)
-                .sslSocketFactory(createTrustAllSslSocketFactory())
-                .get(), "文章详情-" + article.getTitle());
+        Document detailPage;
+
+        // 根据配置选择使用 Selenium 或 Jsoup
+        if (siteConfig.isSeleniumMode()) {
+            detailPage = seleniumService.getPageDocument(article.getUrl(), siteConfig.getSeleniumWaitSeconds());
+        } else {
+            detailPage = retryTask(() -> Jsoup.connect(article.getUrl())
+                    .userAgent(crawlerConfig.getUserAgent())
+                    .timeout(crawlerConfig.getTimeout())
+                    .ignoreHttpErrors(true)
+                    .followRedirects(true)
+                    .sslSocketFactory(createTrustAllSslSocketFactory())
+                    .get(), "文章详情-" + article.getTitle());
+        }
 
         if (detailPage == null) {
             log.warn("获取文章详情失败: {}", article.getTitle());

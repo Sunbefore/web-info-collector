@@ -158,6 +158,9 @@ collector:
     - name: 中央纪委国家监委网站-头条
       url: https://www.ccdi.gov.cn
       # 新闻头条：li > a + span 结构
+      # 使用 Selenium 模式绑过验证码保护
+      selenium-mode: true
+      selenium-wait-seconds: 15
       list-selector: "ul.list_news_dl > li"
       title-selector: "a"
       link-selector: "a"
@@ -173,6 +176,9 @@ collector:
     - name: 中央纪委国家监委网站
       url: https://www.ccdi.gov.cn
       # 要闻及工作动态：div.title > a, div.more 结构
+      # 使用 Selenium 模式绑过验证码保护
+      selenium-mode: true
+      selenium-wait-seconds: 15
       list-selector: "ul.list_news_dl2 > li"
       title-selector: "div.title a"
       link-selector: "div.title a"
