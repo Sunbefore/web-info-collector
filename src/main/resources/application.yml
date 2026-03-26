@@ -147,7 +147,7 @@ collector:
         - name: 政策解读
           url: http://www.mof.gov.cn/zhengwuxinxi/zhengcejiedu/
         - name: 财经视点
-          url: http://www.mof.gov.cn/zhengwuxinxi/caijingshidian/
+          url: http://www.mof.gov.cn/zhengwuxinxi/caijingshidian/zyzfmhwz/
         - name: 财经论坛
           url: http://www.mof.gov.cn/gkml/diaochayanjiu/
         - name: 通知公告
