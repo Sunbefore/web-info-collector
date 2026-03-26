@@ -76,28 +76,6 @@
             <version>2.0.31</version>
         </dependency>
 
-        <!-- Selenium（浏览器自动化，用于有反爬虫保护的网站） -->
-        <!-- 使用 3.x 版本以兼容 Java 8 -->
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <version>3.141.59</version>
-        </dependency>
-
-        <!-- WebDriver Manager（自动管理 ChromeDriver） -->
-        <!-- 使用 5.x 版本以支持最新的 Chrome -->
-        <dependency>
-            <groupId>io.github.bonigarcia</groupId>
-            <artifactId>webdrivermanager</artifactId>
-            <version>5.7.0</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.seleniumhq.selenium</groupId>
-                    <artifactId>selenium-api</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
