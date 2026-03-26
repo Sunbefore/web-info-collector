@@ -119,14 +119,13 @@ collector:
           url: https://www.pbc.gov.cn/fanxiqianju/135153/135267/index.html
         - name: 反洗钱报告
           url: https://www.pbc.gov.cn/fanxiqianju/135153/135282/index.html
-        - name: 反洗钱宣传教育
-          url: https://www.pbc.gov.cn/fanxiqianju/135153/135175/index.html
       enabled: true
 
     - name: 中华人民共和国财政部
       url: http://www.mof.gov.cn
       # HTML模式 + 多栏目子页面 + URL模式翻页
-      list-selector: "ul.xwfb_listbox > li"
+      # 注意：网站已改版，使用新的选择器
+      list-selector: "ul.xwbd_lianbolistfrcon > li"
       title-selector: "a"
       link-selector: "a"
       date-selector: "span"
@@ -140,19 +139,11 @@ collector:
           json-link-field: link
           json-date-field: pubDate
         - name: 财政新闻
-          url: http://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/
+          url: http://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/caizhengxinwen/
         - name: 政策发布
-          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/
-        - name: 政策解读
-          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcejiedu/
-        - name: 财经视点
-          url: http://www.mof.gov.cn/zhengwuxinxi/caijingshidian/
-        - name: 财经论坛
-          url: http://www.mof.gov.cn/gkml/diaochayanjiu/
+          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/zhengcefabu/
         - name: 通知公告
-          url: http://www.mof.gov.cn/gkml/bulinggonggao/
-        - name: 全国财政新闻联播
-          url: http://www.mof.gov.cn/zhengwuxinxi/xinwenlianbo/
+          url: http://www.mof.gov.cn/gkml/bulinggonggao/tongzhitonggao/
       enabled: true
 
     - name: 中央纪委国家监委网站-头条
