@@ -158,10 +158,45 @@ collector:
 
     - name: 中央纪委国家监委网站-头条
       url: https://www.ccdi.gov.cn
+      # 新闻头条：li > a + span 结构
+      # 网站有验证码保护，- 难以绑过，      list-selector: "ul.list_news_dl > li"
+      title-selector: "a"
+      link-selector: "a"
+      date-selector: "span"
+      date-format: "yyyy-MM-dd"
+      content-selector: ".Article_61 .content"
+      next-page-pattern: "index_{page}.html"
+      sub-pages:
+        - name: 新闻头条
+          url: https://www.ccdi.gov.cn/toutiaon/
       enabled: false
 
     - name: 中央纪委国家监委网站
       url: https://www.ccdi.gov.cn
+      # 要闻及工作动态：div.title > a, div.more 结构
+      # 网站有验证码保护
+      list-selector: "ul.list_news_dl2 > li"
+      title-selector: "div.title a"
+      link-selector: "div.title a"
+      date-selector: "div.more"
+      date-format: "yyyy-MM-dd"
+      content-selector: ".Article_61 .content"
+      next-page-pattern: "index_{page}.html"
+      sub-pages:
+        - name: 要闻
+          url: https://www.ccdi.gov.cn/yaowenn/
+        - name: 监督检查
+          url: https://www.ccdi.gov.cn/gzdtn/jdjc/
+        - name: 党风政风
+          url: https://www.ccdi.gov.cn/gzdtn/dfzf/
+        - name: 巡视巡察
+          url: https://www.ccdi.gov.cn/xsxcn/
+        - name: 组织建设
+          url: https://www.ccdi.gov.cn/gzdtn/zzjs/
+        - name: 国际合作
+          url: https://www.ccdi.gov.cn/gzdtn/gjhz/
+        - name: 基层风采
+          url: https://www.ccdi.gov.cn/gzdtn/jcfc/
       enabled: false
 
     - name: 中国邮政集团
