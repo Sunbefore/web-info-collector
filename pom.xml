@@ -90,6 +90,13 @@
             <version>5.7.0</version>
         </dependency>
 
+        <!-- Apache HttpClient 5（WebDriverManager 依赖） -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <version>5.3</version>
+        </dependency>
+
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
