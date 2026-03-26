@@ -363,6 +363,34 @@ public class CrawlerService {
             }
             log.info("[{}] 第{}页找到 {} 条列表项", sourceName, pageNum, listItems.size());
 
+            if (listItems.isEmpty()) {
+                logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
+                for (int retry = 1; retry <= 2 && listItems.isEmpty(); retry++) {
+                    log.warn("[{}] 第{}页列表项为 0，开始第{}次补充重试: {}", sourceName, pageNum, retry, currentUrl);
+                    sleepQuietly(1000L * retry);
+                    listPage = retryTask(() -> Jsoup.connect(finalCurrentUrl)
+                            .userAgent(crawlerConfig.getUserAgent())
+                            .timeout(crawlerConfig.getTimeout())
+                            .ignoreHttpErrors(true)
+                            .followRedirects(true)
+                            .sslSocketFactory(createTrustAllSslSocketFactory())
+                            .get(), "HTML列表页补充重试-" + sourceName + "-第" + pageNum + "页-第" + retry + "次");
+                    if (listPage == null) {
+                        log.warn("[{}] 第{}页第{}次补充重试失败，未获取到页面", sourceName, pageNum, retry);
+                        continue;
+                    }
+                    listItems = listPage.select(siteConfig.getListSelector());
+                    if (listItems.isEmpty()) {
+                        listItems = findFallbackListItems(listPage, currentUrl);
+                    }
+                    if (listItems.isEmpty()) {
+                        logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
+                    } else {
+                        log.info("[{}] 第{}页第{}次补充重试成功，找到 {} 条列表项", sourceName, pageNum, retry, listItems.size());
+                    }
+                }
+            }
+
             if (listItems.isEmpty()) break;
 
             boolean foundOldArticle = false;
@@ -439,6 +467,29 @@ public class CrawlerService {
     /**
      * 解析单个HTML列表项为Article对象
      */
+    private void logEmptyListPageDiagnostic(Document listPage, String sourceName, int pageNum,
+                                            String currentUrl, String listSelector) {
+        if (listPage == null) {
+            log.warn("[{}] 第{}页空列表诊断: 页面对象为空, url={}", sourceName, pageNum, currentUrl);
+            return;
+        }
+        String title = StrUtil.blankToDefault(listPage.title(), "(empty)");
+        String location = StrUtil.blankToDefault(listPage.location(), currentUrl);
+        String html = listPage.outerHtml();
+        String snippet = html.length() > 500 ? html.substring(0, 500) : html;
+        snippet = snippet.replaceAll("\\s+", " ").trim();
+        log.warn("[{}] 第{}页空列表诊断: selector={}, title={}, location={}, htmlSnippet={}",
+                sourceName, pageNum, listSelector, title, location, snippet);
+    }
+
+    private void sleepQuietly(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private Article parseHtmlListItem(Element item, SiteConfig siteConfig, String sourceName) {
         Element titleEl = item.selectFirst(siteConfig.getTitleSelector());
         if (titleEl == null) {
