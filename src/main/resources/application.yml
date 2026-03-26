@@ -86,7 +86,10 @@ collector:
     - name: 中国人民银行反洗钱局
       url: https://www.pbc.gov.cn/fanxiqianju/135153/index.html
       # HTML模式 + 多栏目子页面
-      list-selector: "td:has(a[istitle=true])"
+      # 注意：不同栏目使用不同的HTML结构，需要同时匹配两种模式
+      # td.unline: 工作信息等页面
+      # td[height=22][align=left]: 法规政策等页面（包含font.newslist_style）
+      list-selector: "td.unline, td[height=22][align=left]"
       title-selector: "a"
       link-selector: "a"
       date-selector: "span.hui12"
