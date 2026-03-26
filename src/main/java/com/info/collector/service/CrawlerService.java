@@ -97,12 +97,7 @@ public class CrawlerService {
                     + "&pageSize=" + pageSize + "&pageIndex=" + pageIndex;
             log.info("请求API: {} - 第{}页 - {}", apiItem.getName(), pageIndex, requestUrl);
 
-            final String finalRequestUrl = requestUrl;
-            String response = retryTask(() -> HttpUtil.createGet(finalRequestUrl)
-                    .header("User-Agent", crawlerConfig.getUserAgent())
-                    .timeout(crawlerConfig.getTimeout())
-                    .execute()
-                    .body(), "API列表请求-" + apiItem.getName() + "-第" + pageIndex + "页");
+            String response = fetchApiListResponseWithRetry(requestUrl, crawlerConfig, apiItem.getName(), pageIndex);
 
             if (response == null) {
                 log.warn("API请求失败，跳过当前页: {}", requestUrl);
@@ -487,6 +482,42 @@ public class CrawlerService {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    private String fetchApiListResponseWithRetry(String requestUrl,
+                                                 CollectorProperties.CrawlerConfig crawlerConfig,
+                                                 String apiItemName, int pageIndex) {
+        final String finalRequestUrl = requestUrl;
+        String taskName = "API列表请求-" + apiItemName + "-第" + pageIndex + "页";
+        String response = retryTask(() -> HttpUtil.createGet(finalRequestUrl)
+                .header("User-Agent", crawlerConfig.getUserAgent())
+                .timeout(crawlerConfig.getTimeout())
+                .execute()
+                .body(), taskName);
+
+        for (int retry = 1; retry <= 2 && !isSuccessfulApiResponse(response); retry++) {
+            log.warn("[{}] 第{}页 API未正常返回，开始第{}次补充重试: {}", apiItemName, pageIndex, retry, requestUrl);
+            sleepQuietly(1000L * retry);
+            response = retryTask(() -> HttpUtil.createGet(finalRequestUrl)
+                    .header("User-Agent", crawlerConfig.getUserAgent())
+                    .timeout(crawlerConfig.getTimeout())
+                    .execute()
+                    .body(), taskName + "-补充重试-" + retry);
+        }
+
+        return response;
+    }
+
+    private boolean isSuccessfulApiResponse(String response) {
+        if (StrUtil.isBlank(response)) {
+            return false;
+        }
+        try {
+            JSONObject json = JSONObject.parseObject(response);
+            return json != null && json.getIntValue("rptCode") == 200;
+        } catch (Exception e) {
+            return false;
         }
     }
 
