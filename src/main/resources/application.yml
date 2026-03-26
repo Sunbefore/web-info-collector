@@ -142,8 +142,16 @@ collector:
           url: http://www.mof.gov.cn/zhengwuxinxi/caizhengxinwen/caizhengxinwen/
         - name: 政策发布
           url: http://www.mof.gov.cn/zhengwuxinxi/zhengcefabu/zhengcefabu/
+        - name: 政策解读
+          url: http://www.mof.gov.cn/zhengwuxinxi/zhengcejiedu/zhengcejiedu/
+        - name: 财经视点
+          url: http://www.mof.gov.cn/zhengwuxinxi/caijingshidian/zyzfmhwz/
+        - name: 财经论坛
+          url: http://www.mof.gov.cn/gkml/diaochayanjiu/diaochayanjiu/
         - name: 通知公告
           url: http://www.mof.gov.cn/gkml/bulinggonggao/tongzhitonggao/
+        - name: 全国财政新闻联播
+          url: http://www.mof.gov.cn/zhengwuxinxi/xinwenlianbo/xinwenlianbo/
       enabled: true
 
     - name: 中央纪委国家监委网站-头条
