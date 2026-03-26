@@ -18,11 +18,13 @@ import org.jsoup.select.Elements;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.function.Supplier;
 
 /**
  * 网页爬虫服务
@@ -350,7 +352,24 @@ public class CrawlerService {
                 break;
             }
 
+            // DEBUG: 打印选择器和部分HTML
+            log.info("[{}] 使用选择器: {}", sourceName, siteConfig.getListSelector());
+
             Elements listItems = listPage.select(siteConfig.getListSelector());
+
+            // DEBUG: 如果没找到，尝试打印页面中td元素的数量
+            if (listItems.isEmpty()) {
+                log.info("[{}] 主选择器未命中，页面中 td.unline 数量: {}, td[height=22] 数量: {}",
+                        sourceName,
+                        listPage.select("td.unline").size(),
+                        listPage.select("td[height=22]").size());
+            }
+            if (listItems.isEmpty()) {
+                listItems = findFallbackListItems(listPage, currentUrl);
+                if (!listItems.isEmpty()) {
+                    log.info("[{}] 主选择器未命中，启用兜底列表提取，找到 {} 条候选项", sourceName, listItems.size());
+                }
+            }
             log.info("[{}] 第{}页找到 {} 条列表项", sourceName, pageNum, listItems.size());
 
             if (listItems.isEmpty()) break;
@@ -431,16 +450,25 @@ public class CrawlerService {
      */
     private Article parseHtmlListItem(Element item, SiteConfig siteConfig, String sourceName) {
         Element titleEl = item.selectFirst(siteConfig.getTitleSelector());
+        if (titleEl == null) {
+            titleEl = findBestArticleLink(item);
+        }
         if (titleEl == null) return null;
         String title = titleEl.text().trim();
 
         Element linkEl = item.selectFirst(siteConfig.getLinkSelector());
+        if (linkEl == null) {
+            linkEl = titleEl;
+        }
         String link = linkEl != null ? linkEl.absUrl("href") : "";
         if (StrUtil.isBlank(link)) return null;
 
         Element dateEl = item.selectFirst(siteConfig.getDateSelector());
         String dateStr = dateEl != null ? dateEl.text().trim() : "";
         String normalizedDate = normalizeDateStr(dateStr, siteConfig.getDateFormat());
+        if (StrUtil.isBlank(normalizedDate)) {
+            normalizedDate = normalizeDateStr(item.text(), null);
+        }
 
         Article article = new Article();
         article.setTitle(title);
@@ -448,6 +476,91 @@ public class CrawlerService {
         article.setPublishDate(StrUtil.isNotBlank(normalizedDate) ? normalizedDate : dateStr);
         article.setSourceSite(sourceName);
         return article;
+    }
+
+    private Elements findFallbackListItems(Document page, String currentUrl) {
+        Elements containers = new Elements();
+        Set<String> seenLinks = new LinkedHashSet<>();
+
+        for (Element link : page.select("a[href]")) {
+            String href = link.absUrl("href");
+            String title = link.text().trim();
+            if (!isLikelyArticleLink(title, href, currentUrl)) {
+                continue;
+            }
+
+            Element container = findArticleContainer(link);
+            if (StrUtil.isBlank(normalizeDateStr(container.text(), null))) {
+                continue;
+            }
+            if (seenLinks.add(href)) {
+                containers.add(container);
+            }
+        }
+
+        return containers;
+    }
+
+    private Element findArticleContainer(Element link) {
+        Element current = link;
+        for (int i = 0; i < 4 && current.parent() != null; i++) {
+            Element parent = current.parent();
+            String parentText = parent.text();
+            if (parentText.contains(link.text())
+                    && StrUtil.isNotBlank(normalizeDateStr(parentText, null))
+                    && parentText.length() <= 300) {
+                current = parent;
+            } else {
+                break;
+            }
+        }
+        return current;
+    }
+
+    private Element findBestArticleLink(Element container) {
+        Element best = null;
+        for (Element link : container.select("a[href]")) {
+            String title = link.text().trim();
+            String href = link.absUrl("href");
+            if (!isLikelyArticleLink(title, href, null)) {
+                continue;
+            }
+            if (best == null || title.length() > best.text().trim().length()) {
+                best = link;
+            }
+        }
+        return best;
+    }
+
+    private boolean isLikelyArticleLink(String title, String href, String currentUrl) {
+        if (StrUtil.isBlank(title) || StrUtil.isBlank(href)) {
+            return false;
+        }
+        if (title.length() < 4) {
+            return false;
+        }
+        String normalizedHref = href.toLowerCase();
+        if (normalizedHref.startsWith("javascript:") || normalizedHref.startsWith("mailto:")) {
+            return false;
+        }
+        if (StrUtil.isNotBlank(currentUrl) && href.equals(currentUrl)) {
+            return false;
+        }
+        for (String navText : new String[]{"首页", "上一页", "下一页", "尾页", "打印本页", "关闭窗口", "网站地图", "高级搜索", "English Version", "无障碍浏览", "术语表"}) {
+            if (title.contains(navText)) {
+                return false;
+            }
+        }
+        try {
+            URI uri = URI.create(href);
+            String path = uri.getPath();
+            if (StrUtil.isBlank(path)) {
+                return false;
+            }
+            return path.endsWith(".html") || path.endsWith(".htm") || isDocumentUrl(path);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
