@@ -21,6 +21,8 @@ import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.function.Supplier;
 
 /**
  * 网页爬虫服务
@@ -93,11 +95,17 @@ public class CrawlerService {
                     + "&pageSize=" + pageSize + "&pageIndex=" + pageIndex;
             log.info("请求API: {} - 第{}页 - {}", apiItem.getName(), pageIndex, requestUrl);
 
-            String response = HttpUtil.createGet(requestUrl)
+            final String finalRequestUrl = requestUrl;
+            String response = retryTask(() -> HttpUtil.createGet(finalRequestUrl)
                     .header("User-Agent", crawlerConfig.getUserAgent())
                     .timeout(crawlerConfig.getTimeout())
                     .execute()
-                    .body();
+                    .body(), "API列表请求-" + apiItem.getName() + "-第" + pageIndex + "页");
+
+            if (response == null) {
+                log.warn("API请求失败，跳过当前页: {}", requestUrl);
+                break;
+            }
 
             JSONObject json = JSONObject.parseObject(response);
             if (json == null || json.getIntValue("rptCode") != 200) {
@@ -247,11 +255,16 @@ public class CrawlerService {
         List<Article> articles = new ArrayList<>();
         log.info("抓取JSON接口: {} - {}", sourceName, subPage.getJsonUrl());
 
-        String response = HttpUtil.createGet(subPage.getJsonUrl())
+        String response = retryTask(() -> HttpUtil.createGet(subPage.getJsonUrl())
                 .header("User-Agent", crawlerConfig.getUserAgent())
                 .timeout(crawlerConfig.getTimeout())
                 .execute()
-                .body();
+                .body(), "JSON接口请求-" + sourceName);
+
+        if (response == null) {
+            log.warn("JSON接口请求失败，跳过: {}", subPage.getJsonUrl());
+            return articles;
+        }
 
         JSONArray jsonArray = JSONArray.parseArray(response);
         if (jsonArray == null || jsonArray.isEmpty()) {
@@ -323,13 +336,19 @@ public class CrawlerService {
         while (hasMorePages && currentUrl != null) {
             log.info("抓取列表页: {} (第{}页) - {}", sourceName, pageNum, currentUrl);
 
-            Document listPage = Jsoup.connect(currentUrl)
+            final String finalCurrentUrl = currentUrl;
+            Document listPage = retryTask(() -> Jsoup.connect(finalCurrentUrl)
                     .userAgent(crawlerConfig.getUserAgent())
                     .timeout(crawlerConfig.getTimeout())
                     .ignoreHttpErrors(true)
                     .followRedirects(true)
                     .sslSocketFactory(createTrustAllSslSocketFactory())
-                    .get();
+                    .get(), "HTML列表页请求-" + sourceName + "-第" + pageNum + "页");
+
+            if (listPage == null) {
+                log.warn("列表页请求失败，跳过: {}", currentUrl);
+                break;
+            }
 
             Elements listItems = listPage.select(siteConfig.getListSelector());
             log.info("[{}] 第{}页找到 {} 条列表项", sourceName, pageNum, listItems.size());
@@ -490,54 +509,54 @@ public class CrawlerService {
      */
     private void fetchArticleDetail(Article article, SiteConfig siteConfig,
                                      CollectorProperties.CrawlerConfig crawlerConfig) {
-        try {
-            Document detailPage = Jsoup.connect(article.getUrl())
-                    .userAgent(crawlerConfig.getUserAgent())
-                    .timeout(crawlerConfig.getTimeout())
-                    .ignoreHttpErrors(true)
-                    .followRedirects(true)
-                    .sslSocketFactory(createTrustAllSslSocketFactory())
-                    .get();
+        Document detailPage = retryTask(() -> Jsoup.connect(article.getUrl())
+                .userAgent(crawlerConfig.getUserAgent())
+                .timeout(crawlerConfig.getTimeout())
+                .ignoreHttpErrors(true)
+                .followRedirects(true)
+                .sslSocketFactory(createTrustAllSslSocketFactory())
+                .get(), "文章详情-" + article.getTitle());
 
-            if (StrUtil.isNotBlank(siteConfig.getContentSelector())) {
-                Element contentEl = detailPage.selectFirst(siteConfig.getContentSelector());
-                // 备用选择器：当主选择器找不到时尝试常见的内容区域
-                if (contentEl == null) {
-                    for (String fallback : new String[]{"#UCAP-CONTENT", ".TRS_Editor", ".Article_61 .content", ".new_text span#ReportIDtext", "#zoom", ".article-content", ".detail-content"}) {
-                        contentEl = detailPage.selectFirst(fallback);
-                        if (contentEl != null) break;
+        if (detailPage == null) {
+            log.warn("获取文章详情失败: {}", article.getTitle());
+            article.setContent("（详情获取失败）");
+            return;
+        }
+
+        if (StrUtil.isNotBlank(siteConfig.getContentSelector())) {
+            Element contentEl = detailPage.selectFirst(siteConfig.getContentSelector());
+            // 备用选择器：当主选择器找不到时尝试常见的内容区域
+            if (contentEl == null) {
+                for (String fallback : new String[]{"#UCAP-CONTENT", ".TRS_Editor", ".Article_61 .content", ".new_text span#ReportIDtext", "#zoom", ".article-content", ".detail-content"}) {
+                    contentEl = detailPage.selectFirst(fallback);
+                    if (contentEl != null) break;
+                }
+            }
+            if (contentEl != null) {
+                article.setContent(contentEl.text());
+
+                Elements images = contentEl.select("img");
+                for (Element img : images) {
+                    String imgUrl = img.absUrl("src");
+                    if (StrUtil.isNotBlank(imgUrl)) {
+                        article.getImageUrls().add(imgUrl);
                     }
                 }
-                if (contentEl != null) {
-                    article.setContent(contentEl.text());
 
-                    Elements images = contentEl.select("img");
-                    for (Element img : images) {
-                        String imgUrl = img.absUrl("src");
-                        if (StrUtil.isNotBlank(imgUrl)) {
-                            article.getImageUrls().add(imgUrl);
-                        }
+                Elements links = contentEl.select("a[href]");
+                for (Element link : links) {
+                    String href = link.absUrl("href");
+                    if (isDocumentUrl(href)) {
+                        article.getDocumentUrls().add(encodeUrl(href));
                     }
-
-                    Elements links = contentEl.select("a[href]");
-                    for (Element link : links) {
-                        String href = link.absUrl("href");
-                        if (isDocumentUrl(href)) {
-                            article.getDocumentUrls().add(encodeUrl(href));
-                        }
-                    }
-                } else {
-                    String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
-                    article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
                 }
             } else {
                 String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
                 article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
             }
-
-        } catch (Exception e) {
-            log.warn("获取文章详情失败: {} - {}", article.getTitle(), e.getMessage());
-            article.setContent("（详情获取失败）");
+        } else {
+            String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
+            article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
         }
     }
 
@@ -600,8 +619,9 @@ public class CrawlerService {
      * 下载PDF并提取文字内容
      */
     private void fetchPdfContent(Article article) {
-        try {
-            log.info("下载PDF并提取文字: {}", article.getUrl());
+        log.info("下载PDF并提取文字: {}", article.getUrl());
+
+        Boolean success = retryTask(() -> {
             javax.net.ssl.HttpsURLConnection.setDefaultSSLSocketFactory(createTrustAllSslSocketFactory());
             javax.net.ssl.HttpsURLConnection.setDefaultHostnameVerifier((h, s) -> true);
 
@@ -624,8 +644,10 @@ public class CrawlerService {
                     article.setContent("（PDF为扫描版，无法提取文字）");
                 }
             }
-        } catch (Exception e) {
-            log.warn("PDF文字提取失败: {} - {}", article.getTitle(), e.getMessage());
+            return true;
+        }, "PDF下载-" + article.getTitle());
+
+        if (success == null) {
             article.setContent("（PDF文字提取失败）");
         }
     }
@@ -662,5 +684,38 @@ public class CrawlerService {
         return lower.endsWith(".pdf") || lower.endsWith(".doc") || lower.endsWith(".docx")
                 || lower.endsWith(".xls") || lower.endsWith(".xlsx") || lower.endsWith(".ppt")
                 || lower.endsWith(".pptx") || lower.endsWith(".zip") || lower.endsWith(".rar");
+    }
+
+    /**
+     * 通用重试方法，最多重试3次
+     *
+     * @param task      要执行的任务
+     * @param taskName  任务名称（用于日志）
+     * @param <T>       返回类型
+     * @return 任务结果，失败返回null
+     */
+    private <T> T retryTask(Callable<T> task, String taskName) {
+        final int maxRetries = 3;
+        Exception lastException = null;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return task.call();
+            } catch (Exception e) {
+                lastException = e;
+                if (attempt < maxRetries) {
+                    log.warn("[{}] 第{}次尝试失败: {}，准备重试...", taskName, attempt, e.getMessage());
+                    try {
+                        Thread.sleep(1000 * attempt); // 递增等待时间：1s, 2s, 3s
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+
+        log.error("[{}] 重试{}次后仍然失败: {}", taskName, maxRetries, lastException != null ? lastException.getMessage() : "未知错误");
+        return null;
     }
 }
