@@ -47,7 +47,7 @@ public class SeleniumService {
                 ChromeOptions options = new ChromeOptions();
 
                 // 无头模式（服务器环境必须）
-                options.addArguments("--headless=new");
+                options.addArguments("--headless");
 
                 // 反检测配置
                 options.addArguments("--disable-blink-features=AutomationControlled");
@@ -60,18 +60,8 @@ public class SeleniumService {
                 options.addArguments("--window-size=1920,1080");
                 options.addArguments("--lang=zh-CN");
 
-                // 解决 WebSocket 连接问题
-                options.addArguments("--disable-extensions");
-                options.addArguments("--disable-plugins");
-                options.addArguments("--disable-software-rasterizer");
-                options.addArguments("--disable-web-security");
-                options.addArguments("--remote-allow-origins=*");
-
                 // 设置 User-Agent
                 options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-
-                // 禁用图片加载（加速）
-                options.addArguments("--blink-settings=imagesEnabled=false");
 
                 driver = new ChromeDriver(options);
 
