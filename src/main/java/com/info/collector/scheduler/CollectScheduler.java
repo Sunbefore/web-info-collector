@@ -1,15 +1,18 @@
 package com.info.collector.scheduler;
 
+import cn.hutool.core.date.DateUtil;
+import com.info.collector.config.CollectorProperties;
 import com.info.collector.service.CollectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Resource;
+import java.util.Date;
 
 /**
  * 定时采集任务调度器
- * 按照配置的 Cron 表达式定时执行资讯采集
+ * 默认每3天执行一次，采集最近3天的资讯
  */
 @Slf4j
 @Component
@@ -18,16 +21,19 @@ public class CollectScheduler {
     @Resource
     private CollectorService collectorService;
 
-    /**
-     * 定时采集任务
-     * 默认每天早上 8:30 执行（可在 application.yml 中修改）
-     * 采集所有启用网站的当日最新资讯，不过滤关键词，并推送通知
-     */
-    @Scheduled(cron = "${collector.schedule.cron}")
+    @Resource
+    private CollectorProperties properties;
+
+    @Scheduled(fixedRateString = "${collector.schedule.fixed-rate:259200000}")
     public void scheduledCollect() {
-        log.info("====== 定时采集任务触发 ======");
+        int intervalDays = properties.getSchedule().getIntervalDays();
+        log.info("====== 定时采集任务触发（每{}天执行一次） ======", intervalDays);
         try {
-            collectorService.collect(null, null, true, null, null);
+            Date endDate = DateUtil.offsetDay(new Date(), -1);
+            Date startDate = DateUtil.offsetDay(new Date(), -intervalDays);
+            String startStr = DateUtil.format(startDate, "yyyy-MM-dd");
+            String endStr = DateUtil.format(endDate, "yyyy-MM-dd");
+            collectorService.collect(null, null, true, startStr, endStr);
         } catch (Exception e) {
             log.error("定时采集任务执行异常: {}", e.getMessage(), e);
         }

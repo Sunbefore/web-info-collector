@@ -70,8 +70,9 @@ public class CollectorProperties {
 
     @Data
     public static class ScheduleConfig {
-        /** Cron 表达式 */
         private String cron = "0 30 8 * * ?";
+        private long fixedRate = 259200000;
+        private int intervalDays = 3;
     }
 
     @Data
