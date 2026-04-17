@@ -57,6 +57,8 @@ public class WebInfoCollectorApplication implements CommandLineRunner {
 
         log.info("========== 单次执行模式 ==========");
 
+        System.setProperty("collector.schedule.enabled", "false");
+
         // 解析参数
         String keyword = "反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理";
         int days = 1;

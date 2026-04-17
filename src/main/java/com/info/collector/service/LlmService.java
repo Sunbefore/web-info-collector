@@ -247,6 +247,11 @@ public class LlmService {
             apiKey = llmConfig.getGlmApiKey();
             model = llmConfig.getGlmModel();
             log.info("使用 GLM 模型: {}", model);
+        } else if ("kimi".equalsIgnoreCase(llmConfig.getProvider())) {
+            apiUrl = llmConfig.getKimiApiUrl();
+            apiKey = llmConfig.getKimiApiKey();
+            model = llmConfig.getKimiModel();
+            log.info("使用 Kimi 模型: {}", model);
         } else {
             apiUrl = llmConfig.getApiUrl();
             apiKey = llmConfig.getApiKey();
@@ -275,7 +280,8 @@ public class LlmService {
             requestBody.put("messages", messages);
 
             // 关闭深度思考（仅 Qwen 支持）
-            if (!"glm".equalsIgnoreCase(llmConfig.getProvider())) {
+            if (!"glm".equalsIgnoreCase(llmConfig.getProvider())
+                    && !"kimi".equalsIgnoreCase(llmConfig.getProvider())) {
                 JSONObject extraBody = new JSONObject();
                 extraBody.put("enable_thinking", false);
                 requestBody.put("extra_body", extraBody);

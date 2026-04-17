@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import com.info.collector.config.CollectorProperties;
 import com.info.collector.service.CollectorService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -13,9 +14,11 @@ import java.util.Date;
 /**
  * 定时采集任务调度器
  * 默认每3天执行一次，采集最近3天的资讯
+ * --run-once 模式下通过 collector.schedule.enabled=false 禁用
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "collector.schedule.enabled", havingValue = "true", matchIfMissing = true)
 public class CollectScheduler {
 
     @Resource

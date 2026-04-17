@@ -24,9 +24,9 @@ spring:
 
 # ======================== 采集系统配置 ========================
 collector:
-  # LLM 配置（支持多模型切换：qwen / glm）
+  # LLM 配置（支持多模型切换：qwen / glm / kimi）
   llm:
-    provider: qwen  # 默认使用 qwen，可改为 glm
+    provider: kimi  # 默认使用 kimi，可改为 qwen / glm
     # Qwen 配置
     api-url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
     # api-key: sk-your-dashscope-api-key    # 阿里云百炼平台 API Key（https://bailian.console.aliyun.com/）
@@ -38,6 +38,10 @@ collector:
     glm-api-url: https://open.bigmodel.cn/api/paas/v4/chat/completions
     glm-api-key: ${COLLECTOR_GLM_API_KEY:}  # 智谱 AI API Key，通过环境变量或local配置注入
     glm-model: glm-5                    # 推荐 glm-5-plus，也可用 glm-4-plus
+    # Kimi 配置（月之暗面 Moonshot AI）
+    kimi-api-url: https://api.moonshot.cn/v1/chat/completions
+    kimi-api-key: ${COLLECTOR_KIMI_API_KEY:}  # Moonshot API Key，通过环境变量或local配置注入
+    kimi-model: kimi-k2-turbo-preview            # Kimi K2 Turbo Preview 模型
 
   # 通知配置
   notify:

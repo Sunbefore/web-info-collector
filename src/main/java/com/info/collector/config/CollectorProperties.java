@@ -36,7 +36,7 @@ public class CollectorProperties {
 
     @Data
     public static class LlmConfig {
-        /** 模型提供商 (qwen / glm) */
+        /** 模型提供商 (qwen / glm / kimi) */
         private String provider = "qwen";
         /** LLM API 地址（通义千问 DashScope 兼容接口） */
         private String apiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
@@ -56,6 +56,14 @@ public class CollectorProperties {
         private String glmApiKey;
         /** GLM 模型名称（glm-5-plus / glm-4-plus） */
         private String glmModel = "glm-5-plus";
+
+        // ==================== Kimi 配置预设 ====================
+        /** Kimi API 地址（月之暗面 Moonshot AI） */
+        private String kimiApiUrl = "https://api.moonshot.cn/v1/chat/completions";
+        /** Kimi API Key（Moonshot 平台） */
+        private String kimiApiKey;
+        /** Kimi 模型名称（kimi-k2.5） */
+        private String kimiModel = "kimi-k2-turbo-preview";
     }
 
     @Data
