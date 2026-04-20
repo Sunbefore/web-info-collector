@@ -52,11 +52,10 @@ collector:
     # PushPlus 个人微信推送 Token（可选，关注PushPlus公众号获取）
     pushplus-token: ${PUSHPLUS_TOKEN:}  # PushPlus Token，通过环境变量或local配置注入
 
-  # 定时任务配置（每3天执行一次，即259200000毫秒）
+  # 定时任务配置（每天执行一次）
   schedule:
     cron: "0 0 6 * * ?"
-    fixed-rate: 259200000
-    interval-days: 3
+    interval-days: 1
 
   # 爬虫配置
   crawler:

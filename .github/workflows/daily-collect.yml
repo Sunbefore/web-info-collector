@@ -2,13 +2,13 @@ name: Daily Info Collect
 
 on:
   schedule:
-    - cron: '0 1 * * 5'  # 每周五北京时间早上9点 (UTC 01:00)
+    - cron: '0 1 * * *'  # 每天北京时间早上9点 (UTC 01:00)
   workflow_dispatch:
     inputs:
       days:
         description: '查询天数'
         required: false
-        default: '7'
+        default: '1'
       keyword:
         description: '关键词(逗号分隔)'
         required: false

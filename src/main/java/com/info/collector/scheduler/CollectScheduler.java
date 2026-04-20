@@ -27,7 +27,7 @@ public class CollectScheduler {
     @Resource
     private CollectorProperties properties;
 
-    @Scheduled(fixedRateString = "${collector.schedule.fixed-rate:259200000}")
+    @Scheduled(cron = "${collector.schedule.cron:0 0 6 * * ?}")
     public void scheduledCollect() {
         int intervalDays = properties.getSchedule().getIntervalDays();
         log.info("====== 定时采集任务触发（每{}天执行一次） ======", intervalDays);
