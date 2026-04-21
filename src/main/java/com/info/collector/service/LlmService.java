@@ -149,23 +149,21 @@ public class LlmService {
      */
     private String buildArticleSummaryPrompt(Article article) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一位专业的金融监管资讯分析师。请对以下文章进行简洁摘要，提炼关键要点。\n\n");
-        sb.append("【文章标题】").append(article.getTitle()).append("\n");
-        sb.append("【发布日期】").append(article.getPublishDate()).append("\n");
-        sb.append("【文章来源】").append(article.getSourceSite()).append("\n");
-        sb.append("【文章正文】\n");
+        sb.append("你是一位专业的金融监管资讯分析师。请对以下文章进行简洁摘要。\n\n");
+        sb.append("【标题】").append(article.getTitle()).append("\n");
+        sb.append("【来源】").append(article.getSourceSite()).append(" | ").append(article.getPublishDate()).append("\n");
+        sb.append("【正文】\n");
 
-        // 限制正文长度，避免超过模型上下文窗口
         String content = article.getContent();
         if (content != null && content.length() > 3000) {
             content = content.substring(0, 3000) + "...（已截断）";
         }
         sb.append(content).append("\n\n");
 
-        sb.append("请用中文输出，格式要求：\n");
-        sb.append("1. 一句话概述（不超过50字）\n");
-        sb.append("2. 核心要点（3-5条，每条不超过30字）\n");
-        sb.append("3. 如正文中包含具体的政策条款、监管要求或合规细则，请特别标注。如果正文内容不完整或仅为网页模板文字，则不要强行提示合规关注点\n");
+        sb.append("请用中文输出，要求精简：\n");
+        sb.append("1. 一句话概述（不超过40字）\n");
+        sb.append("2. 核心要点（2-3条，每条不超过25字）\n");
+        sb.append("3. 仅当正文包含具体政策条款或合规要求时，标注合规关注点；正文不完整则不标注\n");
 
         return sb.toString();
     }
@@ -201,19 +199,14 @@ public class LlmService {
             }
         }
 
-        // 输出格式要求
-        sb.append("请用中文输出，格式要求如下（使用 Markdown 格式）：\n\n");
-        sb.append("## 📋 要闻概览\n");
-        sb.append("（用一段话概括主要动态，100字以内）\n\n");
-
-        sb.append("然后逐条列出文章，格式（严格按此格式，不要自己编写链接）：\n");
-        sb.append("- **标题** - 一句话摘要\n");
-        sb.append("  来源：xxx | {{LINK_编号}}\n");
-        sb.append("其中 {{LINK_编号}} 必须原样输出，编号对应文章序号，例如第1篇就写 {{LINK_1}}，第2篇写 {{LINK_2}}，以此类推。\n\n");
-
-        sb.append("最后附加：\n");
-        sb.append("## ⚠️ 合规关注点\n");
-        sb.append("（仅当文章正文中包含具体的政策条款、监管细则、合规要求时才输出此部分，需注明出处文章标题。如果文章正文内容不完整、仅为网页模板文字或无法提取到实质性政策信息，则输出\"暂无需特别关注的合规事项\"即可，不要猜测或编造）\n");
+        sb.append("请用中文输出，使用 Markdown 格式，要求**简洁精炼**，适合手机端快速浏览。\n\n");
+        sb.append("输出格式：\n");
+        sb.append("1. 先写一段「要闻概览」，60字以内概括核心动态\n");
+        sb.append("2. 然后逐条列出文章，每条格式（严格按此格式，不要自己编写链接）：\n");
+        sb.append("- **标题** - 一句话摘要（20字以内）| {{LINK_编号}}\n");
+        sb.append("其中 {{LINK_编号}} 必须原样输出，编号对应文章序号（第1篇写 {{LINK_1}}，以此类推）\n\n");
+        sb.append("3. 最后附「合规关注点」（仅当文章正文包含具体政策条款、监管细则时才列出，最多3条，每条一句话。无实质内容则输出\"暂无\"）\n\n");
+        sb.append("注意：不要展开背景分析，不要重复标题信息，不要输出多余空行。\n");
 
         return sb.toString();
     }

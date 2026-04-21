@@ -129,7 +129,7 @@ public class NotifyService {
         try {
             // 企业微信 Webhook 消息体限制 4096 字节
             if (markdownContent.length() > 3500) {
-                markdownContent = markdownContent.substring(0, 3500) + "\n\n> ...内容过长已截断，详情请查看邮件";
+                markdownContent = markdownContent.substring(0, 3490) + "\n\n> 完整内容请查看邮件";
             }
 
             JSONObject body = new JSONObject();
@@ -320,42 +320,27 @@ public class NotifyService {
      */
     private String buildMarkdownReport(List<CollectResult> results, String keyword, String dateRangeStr, String reportTitle) {
         StringBuilder md = new StringBuilder();
-        md.append("# 📰 ").append(reportTitle).append("\n");
-        md.append("> 日期：").append(dateRangeStr).append("\n\n");
-
+        md.append("### 📰 ").append(reportTitle).append("\n");
+        md.append("> ").append(dateRangeStr);
         if (StrUtil.isNotBlank(keyword)) {
-            md.append("> 🔍 关键词：**").append(keyword).append("**\n\n");
+            md.append(" | 关键词：**").append(keyword).append("**");
         }
+        md.append("\n\n");
 
         for (CollectResult result : results) {
-            md.append("## ").append(result.getSiteName()).append("\n\n");
-
-            if (!result.isSuccess()) {
-                md.append("> ⚠️ 采集失败：").append(result.getErrorMessage()).append("\n\n");
+            if (!result.isSuccess() || result.getArticles().isEmpty()) {
                 continue;
             }
 
-            if (result.getArticles().isEmpty()) {
-                md.append("> 当日暂无相关资讯\n\n");
-                continue;
-            }
+            md.append("**").append(result.getSiteName()).append("**（").append(result.getArticles().size()).append("篇）\n\n");
 
-            // LLM 摘要
             if (StrUtil.isNotBlank(result.getOverallSummary())) {
                 md.append(result.getOverallSummary()).append("\n\n");
             }
-
-            // 文章列表
-            for (Article article : result.getArticles()) {
-                md.append("- **").append(article.getTitle()).append("**");
-                md.append(" (").append(article.getPublishDate()).append(")\n");
-                md.append("  [查看原文](").append(article.getUrl()).append(")\n");
-            }
-            md.append("\n");
         }
 
         md.append("---\n");
-        md.append("*由「资讯采集系统」自动生成 ").append(DateUtil.format(new Date(), "HH:mm:ss")).append("*\n");
+        md.append("详情见邮件 | ").append(DateUtil.format(new Date(), "HH:mm"));
 
         return md.toString();
     }
