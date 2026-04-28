@@ -12,7 +12,7 @@ on:
       keyword:
         description: '关键词(逗号分隔)'
         required: false
-        default: '反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理'
+        default: '反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理,数字纪检'
 
 jobs:
   collect:
@@ -44,6 +44,7 @@ jobs:
           COLLECTOR_LLM_API_KEY: ${{ secrets.COLLECTOR_LLM_API_KEY }}
           COLLECTOR_GLM_API_KEY: ${{ secrets.COLLECTOR_GLM_API_KEY }}
           COLLECTOR_KIMI_API_KEY: ${{ secrets.COLLECTOR_KIMI_API_KEY }}
+          COLLECTOR_DEEPSEEK_API_KEY: ${{ secrets.COLLECTOR_DEEPSEEK_API_KEY }}
           SPRING_MAIL_PASSWORD: ${{ secrets.SPRING_MAIL_PASSWORD }}
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
         run: |
@@ -54,5 +55,6 @@ jobs:
             --collector.llm.api-key=$COLLECTOR_LLM_API_KEY \
             --collector.llm.glm-api-key=$COLLECTOR_GLM_API_KEY \
             --collector.llm.kimi-api-key=$COLLECTOR_KIMI_API_KEY \
+            --collector.llm.deepseek-api-key=$COLLECTOR_DEEPSEEK_API_KEY \
             --spring.mail.password=$SPRING_MAIL_PASSWORD \
             --collector.notify.pushplus-token=$PUSHPLUS_TOKEN

@@ -69,7 +69,8 @@ public class LlmService {
         StringBuilder sb = new StringBuilder();
         sb.append("你是一位专业的金融监管资讯分析师。请判断以下文章与哪些关键词主题相关。\n\n");
         sb.append("关键词列表：").append(keywords).append("\n\n");
-        sb.append("判断标准：只要文章内容与该关键词相关即算匹配，包括直接讨论、政策涉及、案例提及等。不要求是文章的核心主题，只要有实质性关联即可。\n\n");
+        sb.append("判断标准：只要文章内容与该关键词相关即算匹配，包括直接讨论、政策涉及、案例提及等。不要求是文章的核心主题，只要有实质性关联即可。\n");
+        sb.append("特别说明：「数字纪检」涵盖数字监督、智慧纪检、纪检监察信息化、大数据监督、基层监督治理、AI赋能监督等方向。\n\n");
         sb.append("【文章标题】").append(article.getTitle()).append("\n");
         sb.append("【文章正文】\n");
 
@@ -149,7 +150,7 @@ public class LlmService {
      */
     private String buildArticleSummaryPrompt(Article article) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一位专业的金融监管资讯分析师。请对以下文章进行简洁摘要。\n\n");
+        sb.append("你是一位专业的金融监管与纪检监察资讯分析师。请对以下文章进行简洁摘要。\n\n");
         sb.append("【标题】").append(article.getTitle()).append("\n");
         sb.append("【来源】").append(article.getSourceSite()).append(" | ").append(article.getPublishDate()).append("\n");
         sb.append("【正文】\n");
@@ -163,7 +164,7 @@ public class LlmService {
         sb.append("请用中文输出，要求精简：\n");
         sb.append("1. 一句话概述（不超过40字）\n");
         sb.append("2. 核心要点（2-3条，每条不超过25字）\n");
-        sb.append("3. 仅当正文包含具体政策条款或合规要求时，标注合规关注点；正文不完整则不标注\n");
+        sb.append("3. 仅当正文包含具体政策条款或合规要求时，标注合规关注点；如涉及纪检监察、数字监督等内容，标注纪检关注点；正文不完整则不标注\n");
 
         return sb.toString();
     }
@@ -176,9 +177,9 @@ public class LlmService {
         boolean hasKeyword = StrUtil.isNotBlank(keyword);
 
         if (hasKeyword) {
-            sb.append("你是一位专业的金融监管资讯分析师。以下是与主题「").append(groupName).append("」相关的近期资讯，请进行汇总分析。\n\n");
+            sb.append("你是一位专业的金融监管与纪检监察资讯分析师。以下是与主题「").append(groupName).append("」相关的近期资讯，请进行汇总分析。\n\n");
         } else {
-            sb.append("你是一位专业的金融监管资讯分析师。请对以下来自「").append(groupName).append("」的近期资讯进行汇总分析。\n\n");
+            sb.append("你是一位专业的金融监管与纪检监察资讯分析师。请对以下来自「").append(groupName).append("」的近期资讯进行汇总分析。\n\n");
         }
 
         // 按来源栏目分组展示文章
@@ -205,7 +206,7 @@ public class LlmService {
         sb.append("2. 然后逐条列出文章，每条格式（严格按此格式，不要自己编写链接）：\n");
         sb.append("- **标题** - 一句话摘要（20字以内）| {{LINK_编号}}\n");
         sb.append("其中 {{LINK_编号}} 必须原样输出，编号对应文章序号（第1篇写 {{LINK_1}}，以此类推）\n\n");
-        sb.append("3. 最后附「合规关注点」（仅当文章正文包含具体政策条款、监管细则时才列出，最多3条，每条一句话。无实质内容则输出\"暂无\"）\n\n");
+        sb.append("3. 最后附「合规与纪检关注点」（仅当文章正文包含具体政策条款、监管细则或纪检监察内容时才列出，最多3条，每条一句话。无实质内容则输出\"暂无\"）\n\n");
         sb.append("注意：不要展开背景分析，不要重复标题信息，不要输出多余空行。\n");
 
         return sb.toString();
@@ -245,6 +246,11 @@ public class LlmService {
             apiKey = llmConfig.getKimiApiKey();
             model = llmConfig.getKimiModel();
             log.info("使用 Kimi 模型: {}", model);
+        } else if ("deepseek".equalsIgnoreCase(llmConfig.getProvider())) {
+            apiUrl = llmConfig.getDeepseekApiUrl();
+            apiKey = llmConfig.getDeepseekApiKey();
+            model = llmConfig.getDeepseekModel();
+            log.info("使用 DeepSeek 模型: {}", model);
         } else {
             apiUrl = llmConfig.getApiUrl();
             apiKey = llmConfig.getApiKey();
@@ -262,7 +268,7 @@ public class LlmService {
             JSONArray messages = new JSONArray();
             JSONObject systemMsg = new JSONObject();
             systemMsg.put("role", "system");
-            systemMsg.put("content", "你是一位专业的金融监管资讯分析师，擅长对政策文件、监管公告进行精准摘要和风险提示。请使用中文回答。");
+            systemMsg.put("content", "你是一位专业的金融监管与纪检监察资讯分析师，擅长对政策文件、监管公告、纪检监察动态进行精准摘要和风险提示。请使用中文回答。");
             messages.add(systemMsg);
 
             JSONObject userMsg = new JSONObject();
@@ -274,7 +280,8 @@ public class LlmService {
 
             // 关闭深度思考（仅 Qwen 支持）
             if (!"glm".equalsIgnoreCase(llmConfig.getProvider())
-                    && !"kimi".equalsIgnoreCase(llmConfig.getProvider())) {
+                    && !"kimi".equalsIgnoreCase(llmConfig.getProvider())
+                    && !"deepseek".equalsIgnoreCase(llmConfig.getProvider())) {
                 JSONObject extraBody = new JSONObject();
                 extraBody.put("enable_thinking", false);
                 requestBody.put("extra_body", extraBody);

@@ -206,9 +206,22 @@ curl -X DELETE http://localhost:8083/api/collector/sites/中国证监会
 | LLM 服务 | api-url 配置 | api-key | 推荐模型 |
 |-----------|-------------|---------|----------|
 | **通义千问（默认）** | `https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions` | 阿里云百炼 API Key | `qwen-plus` |
+| **DeepSeek** | `https://api.deepseek.com/v1/chat/completions` | DeepSeek API Key | `deepseek-v4-flash` |
+| **智谱 GLM** | `https://open.bigmodel.cn/api/paas/v4/chat/completions` | 智谱 AI API Key | `glm-5` |
+| **Kimi** | `https://api.moonshot.cn/v1/chat/completions` | Moonshot API Key | `kimi-k2-turbo-preview` |
 | Ollama（本地） | `http://localhost:11434/v1/chat/completions` | 随意填写 | `qwen2.5:7b` |
 | OpenAI | `https://api.openai.com/v1/chat/completions` | OpenAI API Key | `gpt-4o-mini` |
 | 其他兼容服务 | 对应的 API 地址 | 对应的 Key | - |
+
+### 切换模型
+
+```bash
+# 使用 DeepSeek
+java -jar web-info-collector-1.0.0.jar --model=deepseek --run-once --keyword=数字纪检 --days=1
+
+# 使用 GLM
+java -jar web-info-collector-1.0.0.jar --model=glm --run-once --keyword=反洗钱 --days=1
+```
 
 ### 通义千问可用模型对比
 

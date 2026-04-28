@@ -36,7 +36,7 @@ public class CollectorProperties {
 
     @Data
     public static class LlmConfig {
-        /** 模型提供商 (qwen / glm / kimi) */
+        /** 模型提供商 (qwen / glm / kimi / deepseek) */
         private String provider = "qwen";
         /** LLM API 地址（通义千问 DashScope 兼容接口） */
         private String apiUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions";
@@ -64,6 +64,14 @@ public class CollectorProperties {
         private String kimiApiKey;
         /** Kimi 模型名称（kimi-k2.5） */
         private String kimiModel = "kimi-k2-turbo-preview";
+
+        // ==================== DeepSeek 配置预设 ====================
+        /** DeepSeek API 地址 */
+        private String deepseekApiUrl = "https://api.deepseek.com/v1/chat/completions";
+        /** DeepSeek API Key */
+        private String deepseekApiKey;
+        /** DeepSeek 模型名称（deepseek-v4-flash / deepseek-chat） */
+        private String deepseekModel = "deepseek-v4-flash";
     }
 
     @Data
