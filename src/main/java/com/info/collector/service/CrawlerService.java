@@ -463,7 +463,8 @@ public class CrawlerService {
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             Document detailPage = fetchHtmlDocumentWithCaptchaRetry(
                     article.getUrl(), siteConfig, crawlerConfig,
-                    "文章详情-" + article.getTitle() + (attempt > 0 ? "-重试" + attempt : ""));
+                    "文章详情-" + article.getTitle() + (attempt > 0 ? "-重试" + attempt : ""),
+                    0, 0L);
 
             if (detailPage == null) {
                 article.setContent("（详情获取失败）");
@@ -472,10 +473,9 @@ public class CrawlerService {
             }
 
             if (isCaptchaPage(detailPage)) {
+                markHostBlocked(article.getUrl(), cooldown);
                 if (attempt < maxRetries) {
-                    log.warn("[文章详情-{}] 验证码拦截，等待 {}ms 后重试", article.getTitle(), cooldown);
-                    sleepQuietly(cooldown);
-                    continue;
+                    log.warn("[文章详情-{}] 验证码拦截，标记失败继续下一篇", article.getTitle());
                 }
                 article.setContent("（详情待补抓：验证码拦截）");
                 article.setDetailFetched(false);
