@@ -43,6 +43,7 @@ public class CrawlerService {
     private CollectorProperties properties;
 
     private final Map<String, Long> lastRequestTimeByHost = new ConcurrentHashMap<>();
+    private final Map<String, Long> blockedUntilByHost = new ConcurrentHashMap<>();
 
     /**
      * 抓取指定网站的文章
@@ -208,10 +209,14 @@ public class CrawlerService {
         List<Article> articles = new ArrayList<>();
         CollectorProperties.CrawlerConfig crawlerConfig = properties.getCrawler();
 
-        log.info("开始抓取网站(HTML模式): {}，日期范围: {} ~ {}", siteConfig.getName(),
-                DateUtil.format(startDate, "yyyy-MM-dd"), DateUtil.format(endDate, "yyyy-MM-dd"));
+        log.info("开始抓取网站(HTML模式): {}，日期范围: {} ~ {}{}",
+                siteConfig.getName(),
+                DateUtil.format(startDate, "yyyy-MM-dd"), DateUtil.format(endDate, "yyyy-MM-dd"),
+                siteConfig.isListFirstMode() ? " [先列表后详情模式]" : "");
 
-        if (siteConfig.getSubPages() != null && !siteConfig.getSubPages().isEmpty()) {
+        if (siteConfig.isListFirstMode()) {
+            articles = crawlSiteByHtmlListFirst(siteConfig, crawlerConfig, startDate, endDate);
+        } else if (siteConfig.getSubPages() != null && !siteConfig.getSubPages().isEmpty()) {
             long subPageInterval = resolveSubPageInterval(siteConfig, crawlerConfig);
             for (int i = 0; i < siteConfig.getSubPages().size(); i++) {
                 SiteConfig.SubPage subPage = siteConfig.getSubPages().get(i);
@@ -223,10 +228,8 @@ public class CrawlerService {
                     String sourceName = siteConfig.getName() + " - " + subPage.getName();
                     List<Article> subArticles;
                     if (StrUtil.isNotBlank(subPage.getJsonUrl())) {
-                        // JSON接口模式
                         subArticles = crawlJsonSubPage(subPage, siteConfig, crawlerConfig, sourceName, startDate, endDate);
                     } else {
-                        // HTML列表模式
                         subArticles = crawlHtmlListPage(
                                 subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate);
                     }
@@ -236,7 +239,6 @@ public class CrawlerService {
                 }
             }
         } else {
-            // 单URL模式（原有逻辑）
             try {
                 List<Article> pageArticles = crawlHtmlListPage(
                         siteConfig.getUrl(), siteConfig, crawlerConfig,
@@ -249,6 +251,280 @@ public class CrawlerService {
 
         log.info("网站 [{}] 抓取完成，共获取 {} 篇文章", siteConfig.getName(), articles.size());
         return articles;
+    }
+
+    private List<Article> crawlSiteByHtmlListFirst(SiteConfig siteConfig,
+                                                     CollectorProperties.CrawlerConfig crawlerConfig,
+                                                     Date startDate, Date endDate) {
+        List<Article> allArticles = new ArrayList<>();
+        long subPageInterval = resolveSubPageInterval(siteConfig, crawlerConfig);
+        long listInterval = resolveListInterval(siteConfig, crawlerConfig);
+
+        List<SiteConfig.SubPage> subPages = siteConfig.getSubPages();
+        if (subPages == null || subPages.isEmpty()) {
+            subPages = new ArrayList<>();
+            SiteConfig.SubPage mainPage = new SiteConfig.SubPage();
+            mainPage.setName(siteConfig.getName());
+            mainPage.setUrl(siteConfig.getUrl());
+            subPages.add(mainPage);
+        }
+
+        log.info("[{}] 阶段1: 开始收集所有栏目列表（不抓详情）", siteConfig.getName());
+        for (int i = 0; i < subPages.size(); i++) {
+            SiteConfig.SubPage subPage = subPages.get(i);
+            if (i > 0) {
+                log.info("[{}] 栏目间隔等待 {}ms", siteConfig.getName(), subPageInterval);
+                sleepQuietly(subPageInterval);
+            }
+            try {
+                String sourceName = siteConfig.getName() + " - " + subPage.getName();
+                if (StrUtil.isNotBlank(subPage.getJsonUrl())) {
+                    List<Article> subArticles = crawlJsonSubPage(subPage, siteConfig, crawlerConfig, sourceName, startDate, endDate);
+                    allArticles.addAll(subArticles);
+                } else {
+                    List<Article> subArticles = collectHtmlListArticlesOnly(
+                            subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate);
+                    allArticles.addAll(subArticles);
+                }
+            } catch (Exception e) {
+                log.error("收集栏目列表 [{}] 失败: {}", subPage.getName(), e.getMessage(), e);
+            }
+        }
+        log.info("[{}] 阶段1完成: 共收集 {} 篇文章链接", siteConfig.getName(), allArticles.size());
+
+        if (allArticles.isEmpty()) return allArticles;
+
+        log.info("[{}] 阶段2: 开始抓取 {} 篇文章详情", siteConfig.getName(), allArticles.size());
+        long detailInterval = resolveDetailInterval(siteConfig, crawlerConfig);
+        int detailRetries = siteConfig.getDetailCaptchaMaxRetries() != null ? siteConfig.getDetailCaptchaMaxRetries() : 1;
+        long detailCooldown = siteConfig.getCaptchaCooldown() != null ? siteConfig.getCaptchaCooldown() : 300000L;
+        List<Article> failedDetails = new ArrayList<>();
+
+        for (Article article : allArticles) {
+            waitForHostThrottle(article.getUrl(), detailInterval);
+            try {
+                if (isDocumentUrl(article.getUrl())) {
+                    article.getDocumentUrls().add(article.getUrl());
+                    fetchPdfContent(article);
+                } else {
+                    fetchArticleDetailWithShortRetry(article, siteConfig, crawlerConfig, detailRetries, detailCooldown);
+                }
+                if (article.isDetailFetched()) {
+                    log.info("文章详情抓取成功: {} ({})", article.getTitle(), article.getPublishDate());
+                } else {
+                    log.warn("文章列表项已收录，详情待补抓: {} ({})", article.getTitle(), article.getPublishDate());
+                    failedDetails.add(article);
+                }
+            } catch (Exception e) {
+                log.warn("文章详情抓取异常: {} - {}", article.getTitle(), e.getMessage());
+                article.setDetailFetched(false);
+                article.setContent("（详情获取失败: " + e.getMessage() + "）");
+                failedDetails.add(article);
+            }
+        }
+
+        if (!failedDetails.isEmpty()) {
+            long retryCooldown = siteConfig.getDetailRetryCooldown() != null ? siteConfig.getDetailRetryCooldown() : 300000L;
+            log.info("[{}] 阶段3: {} 篇详情待补抓，等待 {}ms 后开始", siteConfig.getName(), failedDetails.size(), retryCooldown);
+            sleepQuietly(retryCooldown);
+            int recovered = 0;
+            for (Article article : failedDetails) {
+                waitForHostThrottle(article.getUrl(), detailInterval);
+                try {
+                    if (isDocumentUrl(article.getUrl())) {
+                        fetchPdfContent(article);
+                        article.setDetailFetched(true);
+                    } else {
+                        fetchArticleDetailWithShortRetry(article, siteConfig, crawlerConfig, 1, detailCooldown);
+                    }
+                    if (article.isDetailFetched()) {
+                        recovered++;
+                        log.info("详情补抓成功: {}", article.getTitle());
+                    }
+                } catch (Exception e) {
+                    log.warn("详情补抓失败: {} - {}", article.getTitle(), e.getMessage());
+                }
+            }
+            log.info("[{}] 阶段3完成: 补抓成功 {}/{} 篇", siteConfig.getName(), recovered, failedDetails.size());
+        }
+
+        return allArticles;
+    }
+
+    private List<Article> collectHtmlListArticlesOnly(String pageUrl, SiteConfig siteConfig,
+                                                       CollectorProperties.CrawlerConfig crawlerConfig,
+                                                       String sourceName, Date startDate, Date endDate) {
+        List<Article> articles = new ArrayList<>();
+        String currentUrl = pageUrl;
+        int pageNum = 1;
+        int pageIndex = 0;
+        boolean hasMorePages = true;
+        long listInterval = resolveListInterval(siteConfig, crawlerConfig);
+
+        while (hasMorePages && currentUrl != null) {
+            log.info("收集列表: {} (第{}页) - {}", sourceName, pageNum, currentUrl);
+
+            waitForHostThrottle(currentUrl, listInterval);
+            Document listPage = fetchHtmlDocumentWithCaptchaRetry(
+                    currentUrl, siteConfig, crawlerConfig,
+                    "列表收集-" + sourceName + "-第" + pageNum + "页");
+
+            if (listPage == null) {
+                log.warn("列表页请求失败，跳过: {}", currentUrl);
+                break;
+            }
+
+            if (isCaptchaPage(listPage)) {
+                logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
+                log.warn("[{}] 第{}页因验证码拦截未能获取列表，停止该栏目", sourceName, pageNum);
+                break;
+            }
+
+            Elements listItems = listPage.select(siteConfig.getListSelector());
+            if (listItems.isEmpty()) {
+                listItems = findFallbackListItems(listPage, currentUrl);
+                if (!listItems.isEmpty()) {
+                    log.info("[{}] 主选择器未命中，启用兜底列表提取，找到 {} 条候选项", sourceName, listItems.size());
+                }
+            }
+            log.info("[{}] 第{}页找到 {} 条列表项", sourceName, pageNum, listItems.size());
+
+            if (listItems.isEmpty()) {
+                logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
+                for (int retry = 1; retry <= 2 && listItems.isEmpty(); retry++) {
+                    log.warn("[{}] 第{}页列表项为 0，开始第{}次补充重试: {}", sourceName, pageNum, retry, currentUrl);
+                    sleepQuietly(listInterval * retry);
+                    waitForHostThrottle(currentUrl, listInterval);
+                    listPage = fetchHtmlDocumentWithCaptchaRetry(
+                            currentUrl, siteConfig, crawlerConfig,
+                            "列表收集补充重试-" + sourceName + "-第" + pageNum + "页-第" + retry + "次");
+                    if (listPage == null || isCaptchaPage(listPage)) continue;
+                    listItems = listPage.select(siteConfig.getListSelector());
+                    if (listItems.isEmpty()) listItems = findFallbackListItems(listPage, currentUrl);
+                    if (listItems.isEmpty()) {
+                        logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
+                    } else {
+                        log.info("[{}] 第{}页第{}次补充重试成功，找到 {} 条列表项", sourceName, pageNum, retry, listItems.size());
+                    }
+                }
+            }
+
+            if (listItems.isEmpty()) break;
+
+            boolean foundOldArticle = false;
+            for (Element item : listItems) {
+                if (articles.size() >= crawlerConfig.getMaxArticlesPerSite()) {
+                    log.info("[{}] 已达到最大抓取数 {}", sourceName, crawlerConfig.getMaxArticlesPerSite());
+                    hasMorePages = false;
+                    break;
+                }
+                try {
+                    Article article = parseHtmlListItem(item, siteConfig, sourceName);
+                    if (article == null) continue;
+                    if (StrUtil.isNotBlank(article.getPublishDate())) {
+                        try {
+                            Date articleDate = DateUtil.parse(article.getPublishDate(), "yyyy-MM-dd");
+                            if (articleDate.before(startDate)) { foundOldArticle = true; break; }
+                            if (articleDate.after(endDate)) continue;
+                        } catch (Exception e) {
+                            log.debug("日期解析失败，保留文章: {} ({})", article.getTitle(), article.getPublishDate());
+                        }
+                    }
+                    article.setContent(null);
+                    article.setDetailFetched(false);
+                    articles.add(article);
+                    log.debug("列表项已收录: {} ({})", article.getTitle(), article.getPublishDate());
+                } catch (Exception e) {
+                    log.warn("解析列表项失败，跳过: {}", e.getMessage());
+                }
+            }
+
+            if (foundOldArticle) {
+                log.info("[{}] 已到达日期范围之前的文章，停止翻页", sourceName);
+                break;
+            }
+
+            if (StrUtil.isNotBlank(siteConfig.getNextPagePattern())) {
+                pageIndex++;
+                currentUrl = buildNextPageUrl(pageUrl, siteConfig.getNextPagePattern(), pageIndex);
+            } else {
+                currentUrl = findNextPageUrl(listPage, siteConfig, currentUrl);
+            }
+            if (currentUrl == null) { hasMorePages = false; } else { pageNum++; }
+        }
+
+        log.info("[{}] 列表收集完成，共 {} 篇文章链接", sourceName, articles.size());
+        return articles;
+    }
+
+    private void fetchArticleDetailWithShortRetry(Article article, SiteConfig siteConfig,
+                                                    CollectorProperties.CrawlerConfig crawlerConfig,
+                                                    int maxRetries, long cooldown) {
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            Document detailPage = fetchHtmlDocumentWithCaptchaRetry(
+                    article.getUrl(), siteConfig, crawlerConfig,
+                    "文章详情-" + article.getTitle() + (attempt > 0 ? "-重试" + attempt : ""));
+
+            if (detailPage == null) {
+                article.setContent("（详情获取失败）");
+                article.setDetailFetched(false);
+                return;
+            }
+
+            if (isCaptchaPage(detailPage)) {
+                if (attempt < maxRetries) {
+                    log.warn("[文章详情-{}] 验证码拦截，等待 {}ms 后重试", article.getTitle(), cooldown);
+                    sleepQuietly(cooldown);
+                    continue;
+                }
+                article.setContent("（详情待补抓：验证码拦截）");
+                article.setDetailFetched(false);
+                return;
+            }
+
+            extractArticleContent(detailPage, article, siteConfig);
+            article.setDetailFetched(true);
+            return;
+        }
+        article.setContent("（详情待补抓：验证码拦截）");
+        article.setDetailFetched(false);
+    }
+
+    private void extractArticleContent(Document detailPage, Article article, SiteConfig siteConfig) {
+        if (StrUtil.isNotBlank(siteConfig.getContentSelector())) {
+            Element contentEl = detailPage.selectFirst(siteConfig.getContentSelector());
+            if (contentEl == null) {
+                for (String fallback : new String[]{"#UCAP-CONTENT", ".TRS_Editor", ".Article_61 .content", ".new_text span#ReportIDtext", "#zoom", ".article-content", ".detail-content"}) {
+                    contentEl = detailPage.selectFirst(fallback);
+                    if (contentEl != null) break;
+                }
+            }
+            if (contentEl != null) {
+                article.setContent(contentEl.text());
+
+                Elements images = contentEl.select("img");
+                for (Element img : images) {
+                    String imgUrl = img.absUrl("src");
+                    if (StrUtil.isNotBlank(imgUrl)) {
+                        article.getImageUrls().add(imgUrl);
+                    }
+                }
+
+                Elements links = contentEl.select("a[href]");
+                for (Element link : links) {
+                    String href = link.absUrl("href");
+                    if (isDocumentUrl(href)) {
+                        article.getDocumentUrls().add(encodeUrl(href));
+                    }
+                }
+            } else {
+                String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
+                article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
+            }
+        } else {
+            String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
+            article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
+        }
     }
 
     /**
@@ -497,7 +773,12 @@ public class CrawlerService {
                 || (html.contains("id=\"infoString\"") && html.contains("comImageValidate"));
     }
 
+    private String getHost(String url) {
+        try { return new URI(url).getHost(); } catch (Exception e) { return null; }
+    }
+
     private void waitForHostThrottle(String url, long minInterval) {
+        waitForHostUnblock(url);
         try {
             String host = new URI(url).getHost();
             if (host == null) return;
@@ -531,11 +812,43 @@ public class CrawlerService {
                 ? siteConfig.getSubPageInterval() : crawlerConfig.getRequestInterval();
     }
 
+    private void markHostBlocked(String url, long cooldownMs) {
+        try {
+            String host = new URI(url).getHost();
+            if (host == null) return;
+            long unblockTime = System.currentTimeMillis() + cooldownMs;
+            blockedUntilByHost.merge(host, unblockTime, Math::max);
+            log.info("域名验证码标记: host={} blockedUntil={}ms后", host, cooldownMs);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void waitForHostUnblock(String url) {
+        try {
+            String host = new URI(url).getHost();
+            if (host == null) return;
+            Long until = blockedUntilByHost.get(host);
+            if (until == null) return;
+            long wait = until - System.currentTimeMillis();
+            if (wait > 0) {
+                log.info("域名冷却等待: host={} wait={}ms", host, wait);
+                sleepQuietly(wait);
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
     private Document fetchHtmlDocumentWithCaptchaRetry(String url, SiteConfig siteConfig,
                                                         CollectorProperties.CrawlerConfig crawlerConfig,
                                                         String taskName) {
-        int maxRetries = siteConfig.getCaptchaMaxRetries() != null ? siteConfig.getCaptchaMaxRetries() : 3;
-        long cooldown = siteConfig.getCaptchaCooldown() != null ? siteConfig.getCaptchaCooldown() : 300000L;
+        return fetchHtmlDocumentWithCaptchaRetry(url, siteConfig, crawlerConfig, taskName,
+                siteConfig.getCaptchaMaxRetries() != null ? siteConfig.getCaptchaMaxRetries() : 3,
+                siteConfig.getCaptchaCooldown() != null ? siteConfig.getCaptchaCooldown() : 300000L);
+    }
+
+    private Document fetchHtmlDocumentWithCaptchaRetry(String url, SiteConfig siteConfig,
+                                                        CollectorProperties.CrawlerConfig crawlerConfig,
+                                                        String taskName, int maxRetries, long cooldown) {
 
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             try {
@@ -553,6 +866,7 @@ public class CrawlerService {
                     if (attempt < maxRetries) {
                         log.warn("[{}] 检测到验证码页，等待 {}ms 后重试 (第{}/{}次): {}",
                                 taskName, cooldown, attempt + 1, maxRetries, url);
+                        markHostBlocked(url, cooldown);
                         sleepQuietly(cooldown);
                         continue;
                     } else {
@@ -560,6 +874,8 @@ public class CrawlerService {
                         return doc;
                     }
                 }
+
+                blockedUntilByHost.remove(getHost(url));
 
                 return doc;
             } catch (Exception e) {
@@ -781,59 +1097,25 @@ public class CrawlerService {
      */
     private void fetchArticleDetail(Article article, SiteConfig siteConfig,
                                      CollectorProperties.CrawlerConfig crawlerConfig) {
-        long detailInterval = resolveDetailInterval(siteConfig, crawlerConfig);
-        Document detailPage;
-
-        detailPage = fetchHtmlDocumentWithCaptchaRetry(
+        Document detailPage = fetchHtmlDocumentWithCaptchaRetry(
                 article.getUrl(), siteConfig, crawlerConfig, "文章详情-" + article.getTitle());
 
         if (detailPage == null) {
             log.warn("获取文章详情失败: {}", article.getTitle());
             article.setContent("（详情获取失败）");
+            article.setDetailFetched(false);
             return;
         }
 
         if (isCaptchaPage(detailPage)) {
             log.warn("获取文章详情遇到验证码页: {}", article.getTitle());
             article.setContent("（详情获取失败：验证码拦截）");
+            article.setDetailFetched(false);
             return;
         }
 
-        if (StrUtil.isNotBlank(siteConfig.getContentSelector())) {
-            Element contentEl = detailPage.selectFirst(siteConfig.getContentSelector());
-            // 备用选择器：当主选择器找不到时尝试常见的内容区域
-            if (contentEl == null) {
-                for (String fallback : new String[]{"#UCAP-CONTENT", ".TRS_Editor", ".Article_61 .content", ".new_text span#ReportIDtext", "#zoom", ".article-content", ".detail-content"}) {
-                    contentEl = detailPage.selectFirst(fallback);
-                    if (contentEl != null) break;
-                }
-            }
-            if (contentEl != null) {
-                article.setContent(contentEl.text());
-
-                Elements images = contentEl.select("img");
-                for (Element img : images) {
-                    String imgUrl = img.absUrl("src");
-                    if (StrUtil.isNotBlank(imgUrl)) {
-                        article.getImageUrls().add(imgUrl);
-                    }
-                }
-
-                Elements links = contentEl.select("a[href]");
-                for (Element link : links) {
-                    String href = link.absUrl("href");
-                    if (isDocumentUrl(href)) {
-                        article.getDocumentUrls().add(encodeUrl(href));
-                    }
-                }
-            } else {
-                String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
-                article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
-            }
-        } else {
-            String bodyText = detailPage.body() != null ? detailPage.body().text() : "";
-            article.setContent(bodyText.length() > 2000 ? bodyText.substring(0, 2000) : bodyText);
-        }
+        extractArticleContent(detailPage, article, siteConfig);
+        article.setDetailFetched(true);
     }
 
     /**

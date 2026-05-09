@@ -81,6 +81,15 @@ public class SiteConfig {
     /** 验证码冷却重试次数，默认 3 */
     private Integer captchaMaxRetries = 3;
 
+    /** 是否启用"先列表后详情"两阶段抓取模式，默认 false */
+    private boolean listFirstMode = false;
+
+    /** 详情页验证码短重试次数（listFirstMode下），默认 1 */
+    private Integer detailCaptchaMaxRetries = 1;
+
+    /** 详情页补抓冷却时间（毫秒），默认 300000（5分钟） */
+    private Long detailRetryCooldown = 300000L;
+
     @Data
     public static class ApiItem {
         /** 栏目名称 */

@@ -174,11 +174,14 @@ collector:
       date-format: "yyyy-MM-dd"
       content-selector: ".Article_61 .content"
       next-page-pattern: "index_{page}.html"
-      list-request-interval: 15000
-      detail-request-interval: 20000
-      sub-page-interval: 60000
-      captcha-cooldown: 300000
-      captcha-max-retries: 3
+      list-first-mode: true
+      list-request-interval: 30000
+      detail-request-interval: 30000
+      sub-page-interval: 90000
+      captcha-cooldown: 600000
+      captcha-max-retries: 2
+      detail-captcha-max-retries: 1
+      detail-retry-cooldown: 300000
       sub-pages:
         - name: 新闻头条
           url: https://www.ccdi.gov.cn/toutiaon/
@@ -193,11 +196,14 @@ collector:
       date-format: "yyyy-MM-dd"
       content-selector: ".Article_61 .content"
       next-page-pattern: "index_{page}.html"
-      list-request-interval: 15000
-      detail-request-interval: 20000
-      sub-page-interval: 60000
-      captcha-cooldown: 300000
-      captcha-max-retries: 3
+      list-first-mode: true
+      list-request-interval: 30000
+      detail-request-interval: 30000
+      sub-page-interval: 90000
+      captcha-cooldown: 600000
+      captcha-max-retries: 2
+      detail-captcha-max-retries: 1
+      detail-retry-cooldown: 300000
       sub-pages:
         - name: 要闻
           url: https://www.ccdi.gov.cn/yaowenn/

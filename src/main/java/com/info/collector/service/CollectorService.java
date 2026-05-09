@@ -229,8 +229,11 @@ public class CollectorService {
             result.setArticles(articles);
 
             if (!articles.isEmpty()) {
-                // 2. 为每篇文章生成摘要
                 for (Article article : articles) {
+                    if (!article.isDetailFetched()) {
+                        article.setSummary("（详情页被验证码拦截，未生成摘要）");
+                        continue;
+                    }
                     try {
                         article.setSummary(llmService.summarizeArticle(article));
                     } catch (Exception e) {

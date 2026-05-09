@@ -38,4 +38,7 @@ public class Article {
 
     /** LLM 生成的摘要 */
     private String summary;
+
+    /** 详情页是否抓取成功 */
+    private boolean detailFetched = true;
 }
