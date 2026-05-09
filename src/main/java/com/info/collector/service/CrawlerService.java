@@ -25,6 +25,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 /**
  * 网页爬虫服务
@@ -39,6 +41,8 @@ public class CrawlerService {
 
     @Resource
     private CollectorProperties properties;
+
+    private final Map<String, Long> lastRequestTimeByHost = new ConcurrentHashMap<>();
 
     /**
      * 抓取指定网站的文章
@@ -208,8 +212,13 @@ public class CrawlerService {
                 DateUtil.format(startDate, "yyyy-MM-dd"), DateUtil.format(endDate, "yyyy-MM-dd"));
 
         if (siteConfig.getSubPages() != null && !siteConfig.getSubPages().isEmpty()) {
-            // 多栏目模式：遍历子页面
-            for (SiteConfig.SubPage subPage : siteConfig.getSubPages()) {
+            long subPageInterval = resolveSubPageInterval(siteConfig, crawlerConfig);
+            for (int i = 0; i < siteConfig.getSubPages().size(); i++) {
+                SiteConfig.SubPage subPage = siteConfig.getSubPages().get(i);
+                if (i > 0) {
+                    log.info("[{}] 栏目间隔等待 {}ms", siteConfig.getName(), subPageInterval);
+                    sleepQuietly(subPageInterval);
+                }
                 try {
                     String sourceName = siteConfig.getName() + " - " + subPage.getName();
                     List<Article> subArticles;
@@ -327,25 +336,27 @@ public class CrawlerService {
         List<Article> articles = new ArrayList<>();
         String currentUrl = pageUrl;
         int pageNum = 1;
-        int pageIndex = 0; // 用于URL模式翻页（index.htm=0, index_1.htm=1, ...）
+        int pageIndex = 0;
         boolean hasMorePages = true;
+        long listInterval = resolveListInterval(siteConfig, crawlerConfig);
+        long detailInterval = resolveDetailInterval(siteConfig, crawlerConfig);
 
         while (hasMorePages && currentUrl != null) {
             log.info("抓取列表页: {} (第{}页) - {}", sourceName, pageNum, currentUrl);
 
-            final String finalCurrentUrl = currentUrl;
-            Document listPage;
-
-            listPage = retryTask(() -> Jsoup.connect(finalCurrentUrl)
-                    .userAgent(crawlerConfig.getUserAgent())
-                    .timeout(crawlerConfig.getTimeout())
-                    .ignoreHttpErrors(true)
-                    .followRedirects(true)
-                    .sslSocketFactory(createTrustAllSslSocketFactory())
-                    .get(), "HTML列表页请求-" + sourceName + "-第" + pageNum + "页");
+            waitForHostThrottle(currentUrl, listInterval);
+            Document listPage = fetchHtmlDocumentWithCaptchaRetry(
+                    currentUrl, siteConfig, crawlerConfig,
+                    "HTML列表页请求-" + sourceName + "-第" + pageNum + "页");
 
             if (listPage == null) {
                 log.warn("列表页请求失败，跳过: {}", currentUrl);
+                break;
+            }
+
+            if (isCaptchaPage(listPage)) {
+                logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
+                log.warn("[{}] 第{}页因验证码拦截未能获取列表，停止该栏目翻页", sourceName, pageNum);
                 break;
             }
 
@@ -362,16 +373,13 @@ public class CrawlerService {
                 logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
                 for (int retry = 1; retry <= 2 && listItems.isEmpty(); retry++) {
                     log.warn("[{}] 第{}页列表项为 0，开始第{}次补充重试: {}", sourceName, pageNum, retry, currentUrl);
-                    sleepQuietly(1000L * retry);
-                    listPage = retryTask(() -> Jsoup.connect(finalCurrentUrl)
-                            .userAgent(crawlerConfig.getUserAgent())
-                            .timeout(crawlerConfig.getTimeout())
-                            .ignoreHttpErrors(true)
-                            .followRedirects(true)
-                            .sslSocketFactory(createTrustAllSslSocketFactory())
-                            .get(), "HTML列表页补充重试-" + sourceName + "-第" + pageNum + "页-第" + retry + "次");
-                    if (listPage == null) {
-                        log.warn("[{}] 第{}页第{}次补充重试失败，未获取到页面", sourceName, pageNum, retry);
+                    sleepQuietly(listInterval * retry);
+                    waitForHostThrottle(currentUrl, listInterval);
+                    listPage = fetchHtmlDocumentWithCaptchaRetry(
+                            currentUrl, siteConfig, crawlerConfig,
+                            "HTML列表页补充重试-" + sourceName + "-第" + pageNum + "页-第" + retry + "次");
+                    if (listPage == null || isCaptchaPage(listPage)) {
+                        log.warn("[{}] 第{}页第{}次补充重试失败（验证码或空页面）", sourceName, pageNum, retry);
                         continue;
                     }
                     listItems = listPage.select(siteConfig.getListSelector());
@@ -400,7 +408,6 @@ public class CrawlerService {
                     Article article = parseHtmlListItem(item, siteConfig, sourceName);
                     if (article == null) continue;
 
-                    // 日期过滤
                     if (StrUtil.isNotBlank(article.getPublishDate())) {
                         try {
                             Date articleDate = DateUtil.parse(article.getPublishDate(), "yyyy-MM-dd");
@@ -416,9 +423,8 @@ public class CrawlerService {
                         }
                     }
 
-                    Thread.sleep(crawlerConfig.getRequestInterval());
+                    waitForHostThrottle(article.getUrl(), detailInterval);
 
-                    // PDF链接：下载并提取文字内容
                     if (isDocumentUrl(article.getUrl())) {
                         article.getDocumentUrls().add(article.getUrl());
                         fetchPdfContent(article);
@@ -434,15 +440,12 @@ public class CrawlerService {
                 }
             }
 
-            // 遇到早于起始日期的文章，停止翻页
             if (foundOldArticle) {
                 log.info("[{}] 已到达日期范围之前的文章，停止翻页", sourceName);
                 break;
             }
 
-            // 检查是否有下一页
             if (StrUtil.isNotBlank(siteConfig.getNextPagePattern())) {
-                // URL模式翻页：index.htm -> index_1.htm -> index_2.htm
                 pageIndex++;
                 currentUrl = buildNextPageUrl(pageUrl, siteConfig.getNextPagePattern(), pageIndex);
             } else {
@@ -452,7 +455,6 @@ public class CrawlerService {
                 hasMorePages = false;
             } else {
                 pageNum++;
-                Thread.sleep(crawlerConfig.getRequestInterval());
             }
         }
 
@@ -483,6 +485,90 @@ public class CrawlerService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean isCaptchaPage(Document page) {
+        if (page == null) return false;
+        String html = page.outerHtml();
+        return html.contains("seccaptcha.haplat.net")
+                || html.contains("captchaPage")
+                || html.contains("rightValidate_cont")
+                || html.contains("/_bot_sbu/")
+                || (html.contains("id=\"infoString\"") && html.contains("comImageValidate"));
+    }
+
+    private void waitForHostThrottle(String url, long minInterval) {
+        try {
+            String host = new URI(url).getHost();
+            if (host == null) return;
+            long now = System.currentTimeMillis();
+            Long lastTime = lastRequestTimeByHost.get(host);
+            if (lastTime != null) {
+                long elapsed = now - lastTime;
+                if (elapsed < minInterval) {
+                    long wait = minInterval - elapsed;
+                    log.debug("域名限速等待: host={} wait={}ms", host, wait);
+                    sleepQuietly(wait);
+                }
+            }
+            lastRequestTimeByHost.put(host, System.currentTimeMillis());
+        } catch (Exception ignored) {
+        }
+    }
+
+    private long resolveListInterval(SiteConfig siteConfig, CollectorProperties.CrawlerConfig crawlerConfig) {
+        return siteConfig.getListRequestInterval() != null
+                ? siteConfig.getListRequestInterval() : crawlerConfig.getRequestInterval();
+    }
+
+    private long resolveDetailInterval(SiteConfig siteConfig, CollectorProperties.CrawlerConfig crawlerConfig) {
+        return siteConfig.getDetailRequestInterval() != null
+                ? siteConfig.getDetailRequestInterval() : crawlerConfig.getRequestInterval();
+    }
+
+    private long resolveSubPageInterval(SiteConfig siteConfig, CollectorProperties.CrawlerConfig crawlerConfig) {
+        return siteConfig.getSubPageInterval() != null
+                ? siteConfig.getSubPageInterval() : crawlerConfig.getRequestInterval();
+    }
+
+    private Document fetchHtmlDocumentWithCaptchaRetry(String url, SiteConfig siteConfig,
+                                                        CollectorProperties.CrawlerConfig crawlerConfig,
+                                                        String taskName) {
+        int maxRetries = siteConfig.getCaptchaMaxRetries() != null ? siteConfig.getCaptchaMaxRetries() : 3;
+        long cooldown = siteConfig.getCaptchaCooldown() != null ? siteConfig.getCaptchaCooldown() : 300000L;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                Document doc = retryTask(() -> Jsoup.connect(url)
+                        .userAgent(crawlerConfig.getUserAgent())
+                        .timeout(crawlerConfig.getTimeout())
+                        .ignoreHttpErrors(true)
+                        .followRedirects(true)
+                        .sslSocketFactory(createTrustAllSslSocketFactory())
+                        .get(), taskName + (attempt > 0 ? "-验证码重试" + attempt : ""));
+
+                if (doc == null) return null;
+
+                if (isCaptchaPage(doc)) {
+                    if (attempt < maxRetries) {
+                        log.warn("[{}] 检测到验证码页，等待 {}ms 后重试 (第{}/{}次): {}",
+                                taskName, cooldown, attempt + 1, maxRetries, url);
+                        sleepQuietly(cooldown);
+                        continue;
+                    } else {
+                        log.error("[{}] 检测到验证码页，已耗尽 {} 次冷却重试: {}", taskName, maxRetries, url);
+                        return doc;
+                    }
+                }
+
+                return doc;
+            } catch (Exception e) {
+                log.warn("[{}] 请求异常: {}", taskName, e.getMessage());
+                if (attempt >= maxRetries) return null;
+                sleepQuietly(cooldown);
+            }
+        }
+        return null;
     }
 
     private String fetchApiListResponseWithRetry(String requestUrl,
@@ -695,19 +781,21 @@ public class CrawlerService {
      */
     private void fetchArticleDetail(Article article, SiteConfig siteConfig,
                                      CollectorProperties.CrawlerConfig crawlerConfig) {
+        long detailInterval = resolveDetailInterval(siteConfig, crawlerConfig);
         Document detailPage;
 
-        detailPage = retryTask(() -> Jsoup.connect(article.getUrl())
-                .userAgent(crawlerConfig.getUserAgent())
-                .timeout(crawlerConfig.getTimeout())
-                .ignoreHttpErrors(true)
-                .followRedirects(true)
-                .sslSocketFactory(createTrustAllSslSocketFactory())
-                .get(), "文章详情-" + article.getTitle());
+        detailPage = fetchHtmlDocumentWithCaptchaRetry(
+                article.getUrl(), siteConfig, crawlerConfig, "文章详情-" + article.getTitle());
 
         if (detailPage == null) {
             log.warn("获取文章详情失败: {}", article.getTitle());
             article.setContent("（详情获取失败）");
+            return;
+        }
+
+        if (isCaptchaPage(detailPage)) {
+            log.warn("获取文章详情遇到验证码页: {}", article.getTitle());
+            article.setContent("（详情获取失败：验证码拦截）");
             return;
         }
 

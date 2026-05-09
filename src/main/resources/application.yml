@@ -167,9 +167,6 @@ collector:
 
     - name: 中央纪委国家监委网站-头条
       url: https://www.ccdi.gov.cn
-      # 新闻头条：li > a + span 结构
-      # 实测普通 HTTP 可直接返回列表 HTML
-      # 如后续出现验证码页、403 或空列表，再单独评估抓取策略
       list-selector: "ul.list_news_dl > li"
       title-selector: "a"
       link-selector: "a"
@@ -177,6 +174,11 @@ collector:
       date-format: "yyyy-MM-dd"
       content-selector: ".Article_61 .content"
       next-page-pattern: "index_{page}.html"
+      list-request-interval: 15000
+      detail-request-interval: 20000
+      sub-page-interval: 60000
+      captcha-cooldown: 300000
+      captcha-max-retries: 3
       sub-pages:
         - name: 新闻头条
           url: https://www.ccdi.gov.cn/toutiaon/
@@ -184,9 +186,6 @@ collector:
 
     - name: 中央纪委国家监委网站
       url: https://www.ccdi.gov.cn
-      # 要闻及工作动态：div.title > a, div.more 结构
-      # 实测普通 HTTP 可直接返回列表 HTML
-      # 如后续出现验证码页、403 或空列表，再单独评估抓取策略
       list-selector: "ul.list_news_dl2 > li"
       title-selector: "div.title a"
       link-selector: "div.title a"
@@ -194,6 +193,11 @@ collector:
       date-format: "yyyy-MM-dd"
       content-selector: ".Article_61 .content"
       next-page-pattern: "index_{page}.html"
+      list-request-interval: 15000
+      detail-request-interval: 20000
+      sub-page-interval: 60000
+      captcha-cooldown: 300000
+      captcha-max-retries: 3
       sub-pages:
         - name: 要闻
           url: https://www.ccdi.gov.cn/yaowenn/

@@ -64,6 +64,23 @@ public class SiteConfig {
     /** 是否启用该网站采集 */
     private boolean enabled = true;
 
+    // ========== 站点级限速配置 ==========
+
+    /** 列表页/翻页请求间隔（毫秒），未配置则使用全局 collector.crawler.request-interval */
+    private Long listRequestInterval;
+
+    /** 详情页请求间隔（毫秒），未配置则使用全局 collector.crawler.request-interval */
+    private Long detailRequestInterval;
+
+    /** 栏目（subPage）之间间隔（毫秒），未配置则使用全局 collector.crawler.request-interval */
+    private Long subPageInterval;
+
+    /** 检测到验证码后的冷却等待时间（毫秒），默认 300000（5分钟） */
+    private Long captchaCooldown = 300000L;
+
+    /** 验证码冷却重试次数，默认 3 */
+    private Integer captchaMaxRetries = 3;
+
     @Data
     public static class ApiItem {
         /** 栏目名称 */
