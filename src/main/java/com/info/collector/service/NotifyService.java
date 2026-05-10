@@ -15,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.Resource;
 import javax.mail.internet.MimeMessage;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -303,6 +304,33 @@ public class NotifyService {
             html.append("<div class='empty-box'>📭 今日各站点均暂无最新资讯</div>");
         }
 
+        // 待手动查看栏目：收集所有详情抓取失败的文章
+        List<Article> allFailed = new ArrayList<>();
+        for (CollectResult result : results) {
+            if (result.getFailedDetailArticles() != null) {
+                allFailed.addAll(result.getFailedDetailArticles());
+            }
+        }
+        if (!allFailed.isEmpty()) {
+            html.append("<div class='site-section'>");
+            html.append("<h2 class='site-title' style='border-left-color:#e6a23c;color:#e6a23c;'>⚠️ 详情待手动查看</h2>");
+            html.append("<div class='summary-box' style='background:#fdf6ec;border-color:#faecd8;'>");
+            html.append("<p style='margin:0 0 10px;color:#e6a23c;font-size:13px;'>以下文章详情因验证码拦截等原因未能自动抓取，请手动点击查看：</p>");
+            for (Article article : allFailed) {
+                html.append("<div style='margin-bottom:8px;'>");
+                html.append("<a href='").append(article.getUrl()).append("' target='_blank' style='color:#667eea;text-decoration:none;'>");
+                html.append(article.getTitle()).append("</a>");
+                if (StrUtil.isNotBlank(article.getSourceSite())) {
+                    html.append("<span style='color:#999;font-size:12px;margin-left:8px;'>").append(article.getSourceSite()).append("</span>");
+                }
+                if (StrUtil.isNotBlank(article.getSummary())) {
+                    html.append("<div style='color:#999;font-size:12px;margin-top:2px;'>").append(article.getSummary()).append("</div>");
+                }
+                html.append("</div>");
+            }
+            html.append("</div></div>");
+        }
+
         html.append("</div>");
 
         // 页脚
@@ -340,6 +368,22 @@ public class NotifyService {
         }
 
         md.append("---\n");
+
+        // 待手动查看
+        List<Article> allFailed = new ArrayList<>();
+        for (CollectResult result : results) {
+            if (result.getFailedDetailArticles() != null) {
+                allFailed.addAll(result.getFailedDetailArticles());
+            }
+        }
+        if (!allFailed.isEmpty()) {
+            md.append("**⚠️ 详情待手动查看**\n");
+            for (Article article : allFailed) {
+                md.append("- [").append(article.getTitle()).append("](").append(article.getUrl()).append(")\n");
+            }
+            md.append("\n");
+        }
+
         md.append("详情见邮件 | ").append(DateUtil.format(new Date(), "HH:mm"));
 
         return md.toString();

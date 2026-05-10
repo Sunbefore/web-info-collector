@@ -84,6 +84,21 @@ public class CollectorService {
             }
         }
 
+        // 对详情抓取失败的文章，根据标题让LLM判断与关键词的相关性
+        List<Article> allFailedDetails = new ArrayList<>();
+        for (CollectResult r : results) {
+            if (r.getFailedDetailArticles() != null) {
+                allFailedDetails.addAll(r.getFailedDetailArticles());
+            }
+        }
+        if (!allFailedDetails.isEmpty()) {
+            try {
+                llmService.judgeFailedArticlesByTitle(allFailedDetails, keywords);
+            } catch (Exception e) {
+                log.warn("失败文章标题判断失败: {}", e.getMessage());
+            }
+        }
+
         // 发送通知
         if (sendNotify) {
             try {
@@ -209,8 +224,16 @@ public class CollectorService {
                 }
             }
 
+            // 收集该关键词下详情抓取失败的文章
+            List<Article> failed = new ArrayList<>();
+            for (Article article : kwArticles) {
+                if (!article.isDetailFetched()) {
+                    failed.add(article);
+                }
+            }
+            result.setFailedDetailArticles(failed);
+
             results.add(result);
-            log.info("关键词 [{}] 共 {} 篇相关文章", kw, kwArticles.size());
         }
 
         return results;
@@ -249,6 +272,18 @@ public class CollectorService {
 
             result.setSuccess(true);
             log.info("网站 [{}] 采集完成，共 {} 篇相关文章", site.getName(), articles.size());
+
+            // 收集详情抓取失败的文章
+            List<Article> failed = new ArrayList<>();
+            for (Article article : articles) {
+                if (!article.isDetailFetched()) {
+                    failed.add(article);
+                }
+            }
+            result.setFailedDetailArticles(failed);
+            if (!failed.isEmpty()) {
+                log.info("网站 [{}] 共 {} 篇文章详情未成功抓取", site.getName(), failed.size());
+            }
 
         } catch (Exception e) {
             result.setSuccess(false);

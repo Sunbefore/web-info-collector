@@ -68,7 +68,7 @@ collector:
     # 请求间隔（毫秒），避免被封IP
     request-interval: 2000
     # 最大抓取文章数（每个网站）
-    max-articles-per-site: 20
+    max-articles-per-site: 1000
     # User-Agent
     user-agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -175,13 +175,13 @@ collector:
       content-selector: ".Article_61 .content"
       next-page-pattern: "index_{page}.html"
       list-first-mode: true
-      list-request-interval: 30000
-      detail-request-interval: 30000
-      sub-page-interval: 90000
-      captcha-cooldown: 600000
+      list-request-interval: 10000
+      detail-request-interval: 10000
+      sub-page-interval: 15000
+      captcha-cooldown: 120000
       captcha-max-retries: 2
       detail-captcha-max-retries: 1
-      detail-retry-cooldown: 300000
+      detail-retry-cooldown: 60000
       sub-pages:
         - name: 新闻头条
           url: https://www.ccdi.gov.cn/toutiaon/
@@ -197,13 +197,13 @@ collector:
       content-selector: ".Article_61 .content"
       next-page-pattern: "index_{page}.html"
       list-first-mode: true
-      list-request-interval: 30000
-      detail-request-interval: 30000
-      sub-page-interval: 90000
-      captcha-cooldown: 600000
+      list-request-interval: 10000
+      detail-request-interval: 10000
+      sub-page-interval: 15000
+      captcha-cooldown: 120000
       captcha-max-retries: 2
       detail-captcha-max-retries: 1
-      detail-retry-cooldown: 300000
+      detail-retry-cooldown: 60000
       sub-pages:
         - name: 要闻
           url: https://www.ccdi.gov.cn/yaowenn/

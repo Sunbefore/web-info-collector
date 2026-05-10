@@ -226,6 +226,56 @@ public class LlmService {
     }
 
     /**
+     * 根据标题批量判断失败文章与关键词的相关性，并为每篇写一句简要说明
+     * 将判断结果存入 article.summary
+     *
+     * @param failedArticles 详情抓取失败的文章列表
+     * @param keywords       关键词列表
+     */
+    public void judgeFailedArticlesByTitle(List<Article> failedArticles, List<String> keywords) {
+        if (failedArticles.isEmpty()) return;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是一位专业的金融监管与纪检监察资讯分析师。以下是详情未能自动抓取的文章，请仅根据标题判断每篇文章与给定关键词是否相关，并写一句简要说明（不超过30字）。\n\n");
+        sb.append("关键词列表：").append(keywords).append("\n\n");
+        sb.append("特别说明：「数字纪检」涵盖数字监督、智慧纪检、纪检监察信息化、大数据监督等方向。\n\n");
+
+        for (int i = 0; i < failedArticles.size(); i++) {
+            Article article = failedArticles.get(i);
+            sb.append("第").append(i + 1).append("篇：").append(article.getTitle()).append("\n");
+        }
+
+        sb.append("\n请逐条输出判断结果，严格按以下JSON格式返回，不要输出其他任何内容：\n");
+        sb.append("[{\"related\":true,\"note\":\"一句话说明\"},{\"related\":false,\"note\":\"一句话说明\"}]\n");
+        sb.append("related为布尔值表示是否与任一关键词相关，note为简要说明。");
+
+        try {
+            String result = callLlm(sb.toString(), "失败文章标题判断 - " + failedArticles.size() + "篇");
+            int start = result.indexOf('[');
+            int end = result.lastIndexOf(']');
+            if (start < 0 || end < 0) {
+                log.warn("LLM标题判断结果解析失败，无JSON数组");
+                return;
+            }
+
+            JSONArray array = JSON.parseArray(result.substring(start, end + 1));
+            for (int i = 0; i < failedArticles.size() && i < array.size(); i++) {
+                Article article = failedArticles.get(i);
+                JSONObject item = array.getJSONObject(i);
+                boolean related = item.getBooleanValue("related");
+                String note = item.getString("note");
+                if (related) {
+                    article.setSummary("可能与关键词相关：" + note);
+                } else {
+                    article.setSummary("可能与关键词无关：" + note);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("失败文章标题判断异常: {}", e.getMessage());
+        }
+    }
+
+    /**
      * 调用 LLM API（兼容 OpenAI Chat Completions 格式）
      *
      * @param prompt 用户 Prompt

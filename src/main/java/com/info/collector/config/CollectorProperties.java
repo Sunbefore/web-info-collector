@@ -97,7 +97,7 @@ public class CollectorProperties {
         /** 请求间隔（毫秒） */
         private long requestInterval = 2000;
         /** 每个网站最大抓取文章数 */
-        private int maxArticlesPerSite = 20;
+        private int maxArticlesPerSite = 1000;
         /** User-Agent */
         private String userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
     }

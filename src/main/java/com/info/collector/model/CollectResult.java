@@ -35,4 +35,7 @@ public class CollectResult {
 
     /** 错误信息（采集失败时） */
     private String errorMessage;
+
+    /** 详情页抓取失败的文章（标题+链接，供手动查看） */
+    private List<Article> failedDetailArticles = new ArrayList<>();
 }

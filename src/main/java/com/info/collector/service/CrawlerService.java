@@ -324,9 +324,7 @@ public class CrawlerService {
         }
 
         if (!failedDetails.isEmpty()) {
-            long retryCooldown = siteConfig.getDetailRetryCooldown() != null ? siteConfig.getDetailRetryCooldown() : 300000L;
-            log.info("[{}] 阶段3: {} 篇详情待补抓，等待 {}ms 后开始", siteConfig.getName(), failedDetails.size(), retryCooldown);
-            sleepQuietly(retryCooldown);
+            log.info("[{}] 阶段3: {} 篇详情待补抓，立即开始", siteConfig.getName(), failedDetails.size());
             int recovered = 0;
             for (Article article : failedDetails) {
                 waitForHostThrottle(article.getUrl(), detailInterval);
