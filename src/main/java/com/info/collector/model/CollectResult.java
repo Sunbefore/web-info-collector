@@ -38,4 +38,7 @@ public class CollectResult {
 
     /** 详情页抓取失败的文章（标题+链接，供手动查看） */
     private List<Article> failedDetailArticles = new ArrayList<>();
+
+    /** 列表页抓取失败的栏目（格式：栏目名 | URL | 原因） */
+    private List<String> failedListPages = new ArrayList<>();
 }

@@ -331,6 +331,43 @@ public class NotifyService {
             html.append("</div></div>");
         }
 
+        // 列表抓取失败栏目
+        List<String> allFailedListPages = new ArrayList<>();
+        for (CollectResult result : results) {
+            if (result.getFailedListPages() != null) {
+                for (String fp : result.getFailedListPages()) {
+                    if (!allFailedListPages.contains(fp)) {
+                        allFailedListPages.add(fp);
+                    }
+                }
+            }
+        }
+        if (!allFailedListPages.isEmpty()) {
+            html.append("<div class='site-section'>");
+            html.append("<h2 class='site-title' style='border-left-color:#f56c6c;color:#f56c6c;'>❌ 栏目列表抓取失败</h2>");
+            html.append("<div class='summary-box' style='background:#fef0f0;border-color:#fde2e2;'>");
+            html.append("<p style='margin:0 0 10px;color:#f56c6c;font-size:13px;'>以下栏目列表未能自动获取，请手动点击查看：</p>");
+            for (String item : allFailedListPages) {
+                String[] parts = item.split(" \\| ", 3);
+                String name = parts.length > 0 ? parts[0] : "";
+                String url = parts.length > 1 ? parts[1] : "";
+                String reason = parts.length > 2 ? parts[2] : "";
+                html.append("<div style='margin-bottom:8px;'>");
+                if (StrUtil.isNotBlank(url)) {
+                    html.append("<a href='").append(url).append("' target='_blank' style='color:#667eea;text-decoration:none;'>");
+                }
+                html.append(name);
+                if (StrUtil.isNotBlank(url)) {
+                    html.append("</a>");
+                }
+                if (StrUtil.isNotBlank(reason)) {
+                    html.append("<span style='color:#f56c6c;font-size:12px;margin-left:8px;'>").append(reason).append("</span>");
+                }
+                html.append("</div>");
+            }
+            html.append("</div></div>");
+        }
+
         html.append("</div>");
 
         // 页脚
@@ -380,6 +417,37 @@ public class NotifyService {
             md.append("**⚠️ 详情待手动查看**\n");
             for (Article article : allFailed) {
                 md.append("- [").append(article.getTitle()).append("](").append(article.getUrl()).append(")\n");
+            }
+            md.append("\n");
+        }
+
+        // 列表抓取失败
+        List<String> allFailedListPages = new ArrayList<>();
+        for (CollectResult result : results) {
+            if (result.getFailedListPages() != null) {
+                for (String fp : result.getFailedListPages()) {
+                    if (!allFailedListPages.contains(fp)) {
+                        allFailedListPages.add(fp);
+                    }
+                }
+            }
+        }
+        if (!allFailedListPages.isEmpty()) {
+            md.append("**❌ 栏目列表抓取失败**\n");
+            for (String item : allFailedListPages) {
+                String[] parts = item.split(" \\| ", 3);
+                String name = parts.length > 0 ? parts[0] : "";
+                String url = parts.length > 1 ? parts[1] : "";
+                String reason = parts.length > 2 ? parts[2] : "";
+                if (StrUtil.isNotBlank(url)) {
+                    md.append("- [").append(name).append("](").append(url).append(")");
+                } else {
+                    md.append("- ").append(name);
+                }
+                if (StrUtil.isNotBlank(reason)) {
+                    md.append(" — ").append(reason);
+                }
+                md.append("\n");
             }
             md.append("\n");
         }

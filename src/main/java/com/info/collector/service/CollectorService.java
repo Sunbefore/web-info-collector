@@ -147,10 +147,13 @@ public class CollectorService {
     private List<CollectResult> collectByKeywords(List<SiteConfig> sites, List<String> keywords, Date[] dateRange) {
         // 1. 从所有网站抓取文章
         List<Article> allArticles = new ArrayList<>();
+        List<String> allFailedListPages = new ArrayList<>();
         for (SiteConfig site : sites) {
             try {
-                List<Article> articles = crawlerService.crawlSite(site, dateRange[0], dateRange[1]);
+                List<String> siteFailedPages = new ArrayList<>();
+                List<Article> articles = crawlerService.crawlSite(site, dateRange[0], dateRange[1], siteFailedPages);
                 allArticles.addAll(articles);
+                allFailedListPages.addAll(siteFailedPages);
             } catch (Exception e) {
                 log.error("网站 [{}] 抓取失败: {}", site.getName(), e.getMessage(), e);
             }
@@ -232,6 +235,7 @@ public class CollectorService {
                 }
             }
             result.setFailedDetailArticles(failed);
+            result.setFailedListPages(allFailedListPages);
 
             results.add(result);
         }
@@ -248,7 +252,9 @@ public class CollectorService {
 
         try {
             // 1. 抓取文章（按日期范围过滤）
-            List<Article> articles = crawlerService.crawlSite(site, dateRange[0], dateRange[1]);
+            List<String> failedListPages = new ArrayList<>();
+            List<Article> articles = crawlerService.crawlSite(site, dateRange[0], dateRange[1], failedListPages);
+            result.setFailedListPages(failedListPages);
             result.setArticles(articles);
 
             if (!articles.isEmpty()) {

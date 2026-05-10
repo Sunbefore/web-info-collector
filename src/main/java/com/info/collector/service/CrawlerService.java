@@ -53,17 +53,21 @@ public class CrawlerService {
      * @param endDate   截止日期
      */
     public List<Article> crawlSite(SiteConfig siteConfig, Date startDate, Date endDate) {
+        return crawlSite(siteConfig, startDate, endDate, null);
+    }
+
+    public List<Article> crawlSite(SiteConfig siteConfig, Date startDate, Date endDate, List<String> failedListPages) {
         if (siteConfig.isApiMode()) {
-            return crawlSiteByApi(siteConfig, startDate, endDate);
+            return crawlSiteByApi(siteConfig, startDate, endDate, failedListPages);
         } else {
-            return crawlSiteByHtml(siteConfig, startDate, endDate);
+            return crawlSiteByHtml(siteConfig, startDate, endDate, failedListPages);
         }
     }
 
     /**
      * API模式：直接请求JSON接口获取文章列表
      */
-    private List<Article> crawlSiteByApi(SiteConfig siteConfig, Date startDate, Date endDate) {
+    private List<Article> crawlSiteByApi(SiteConfig siteConfig, Date startDate, Date endDate, List<String> failedListPages) {
         List<Article> articles = new ArrayList<>();
         CollectorProperties.CrawlerConfig crawlerConfig = properties.getCrawler();
 
@@ -80,6 +84,9 @@ public class CrawlerService {
                 crawlApiItemWithPaging(siteConfig, apiItem, crawlerConfig, startDate, endDate, articles);
             } catch (Exception e) {
                 log.error("抓取栏目 [{}] 失败: {}", apiItem.getName(), e.getMessage(), e);
+                if (failedListPages != null) {
+                    failedListPages.add(apiItem.getName() + " | " + siteConfig.getApiUrl() + " | " + e.getMessage());
+                }
             }
         }
 
@@ -205,7 +212,7 @@ public class CrawlerService {
      * 1. 单URL模式（原有逻辑）：直接抓取siteConfig.url
      * 2. 多栏目模式（subPages）：遍历每个子页面URL，支持分页
      */
-    private List<Article> crawlSiteByHtml(SiteConfig siteConfig, Date startDate, Date endDate) {
+    private List<Article> crawlSiteByHtml(SiteConfig siteConfig, Date startDate, Date endDate, List<String> failedListPages) {
         List<Article> articles = new ArrayList<>();
         CollectorProperties.CrawlerConfig crawlerConfig = properties.getCrawler();
 
@@ -215,7 +222,7 @@ public class CrawlerService {
                 siteConfig.isListFirstMode() ? " [先列表后详情模式]" : "");
 
         if (siteConfig.isListFirstMode()) {
-            articles = crawlSiteByHtmlListFirst(siteConfig, crawlerConfig, startDate, endDate);
+            articles = crawlSiteByHtmlListFirst(siteConfig, crawlerConfig, startDate, endDate, failedListPages);
         } else if (siteConfig.getSubPages() != null && !siteConfig.getSubPages().isEmpty()) {
             long subPageInterval = resolveSubPageInterval(siteConfig, crawlerConfig);
             for (int i = 0; i < siteConfig.getSubPages().size(); i++) {
@@ -231,21 +238,27 @@ public class CrawlerService {
                         subArticles = crawlJsonSubPage(subPage, siteConfig, crawlerConfig, sourceName, startDate, endDate);
                     } else {
                         subArticles = crawlHtmlListPage(
-                                subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate);
+                                subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate, failedListPages);
                     }
                     articles.addAll(subArticles);
                 } catch (Exception e) {
                     log.error("抓取栏目 [{}] 失败: {}", subPage.getName(), e.getMessage(), e);
+                    if (failedListPages != null) {
+                        failedListPages.add(subPage.getName() + " | " + subPage.getUrl() + " | " + e.getMessage());
+                    }
                 }
             }
         } else {
             try {
                 List<Article> pageArticles = crawlHtmlListPage(
                         siteConfig.getUrl(), siteConfig, crawlerConfig,
-                        siteConfig.getName(), startDate, endDate);
+                        siteConfig.getName(), startDate, endDate, failedListPages);
                 articles.addAll(pageArticles);
             } catch (Exception e) {
                 log.error("抓取网站 [{}] 失败: {}", siteConfig.getName(), e.getMessage(), e);
+                if (failedListPages != null) {
+                    failedListPages.add(siteConfig.getName() + " | " + siteConfig.getUrl() + " | " + e.getMessage());
+                }
             }
         }
 
@@ -255,7 +268,8 @@ public class CrawlerService {
 
     private List<Article> crawlSiteByHtmlListFirst(SiteConfig siteConfig,
                                                      CollectorProperties.CrawlerConfig crawlerConfig,
-                                                     Date startDate, Date endDate) {
+                                                     Date startDate, Date endDate,
+                                                     List<String> failedListPages) {
         List<Article> allArticles = new ArrayList<>();
         long subPageInterval = resolveSubPageInterval(siteConfig, crawlerConfig);
         long listInterval = resolveListInterval(siteConfig, crawlerConfig);
@@ -283,11 +297,14 @@ public class CrawlerService {
                     allArticles.addAll(subArticles);
                 } else {
                     List<Article> subArticles = collectHtmlListArticlesOnly(
-                            subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate);
+                            subPage.getUrl(), siteConfig, crawlerConfig, sourceName, startDate, endDate, failedListPages);
                     allArticles.addAll(subArticles);
                 }
             } catch (Exception e) {
                 log.error("收集栏目列表 [{}] 失败: {}", subPage.getName(), e.getMessage(), e);
+                if (failedListPages != null) {
+                    failedListPages.add(subPage.getName() + " | " + subPage.getUrl() + " | " + e.getMessage());
+                }
             }
         }
         log.info("[{}] 阶段1完成: 共收集 {} 篇文章链接", siteConfig.getName(), allArticles.size());
@@ -351,7 +368,8 @@ public class CrawlerService {
 
     private List<Article> collectHtmlListArticlesOnly(String pageUrl, SiteConfig siteConfig,
                                                        CollectorProperties.CrawlerConfig crawlerConfig,
-                                                       String sourceName, Date startDate, Date endDate) {
+                                                       String sourceName, Date startDate, Date endDate,
+                                                       List<String> failedListPages) {
         List<Article> articles = new ArrayList<>();
         String currentUrl = pageUrl;
         int pageNum = 1;
@@ -369,12 +387,18 @@ public class CrawlerService {
 
             if (listPage == null) {
                 log.warn("列表页请求失败，跳过: {}", currentUrl);
+                if (failedListPages != null && pageNum == 1) {
+                    failedListPages.add(sourceName + " | " + currentUrl + " | 请求失败");
+                }
                 break;
             }
 
             if (isCaptchaPage(listPage)) {
                 logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
                 log.warn("[{}] 第{}页因验证码拦截未能获取列表，停止该栏目", sourceName, pageNum);
+                if (failedListPages != null && pageNum == 1) {
+                    failedListPages.add(sourceName + " | " + currentUrl + " | 验证码拦截");
+                }
                 break;
             }
 
@@ -606,7 +630,8 @@ public class CrawlerService {
      */
     private List<Article> crawlHtmlListPage(String pageUrl, SiteConfig siteConfig,
                                              CollectorProperties.CrawlerConfig crawlerConfig,
-                                             String sourceName, Date startDate, Date endDate) throws Exception {
+                                             String sourceName, Date startDate, Date endDate,
+                                             List<String> failedListPages) throws Exception {
         List<Article> articles = new ArrayList<>();
         String currentUrl = pageUrl;
         int pageNum = 1;
@@ -625,12 +650,18 @@ public class CrawlerService {
 
             if (listPage == null) {
                 log.warn("列表页请求失败，跳过: {}", currentUrl);
+                if (failedListPages != null && pageNum == 1) {
+                    failedListPages.add(sourceName + " | " + currentUrl + " | 请求失败");
+                }
                 break;
             }
 
             if (isCaptchaPage(listPage)) {
                 logEmptyListPageDiagnostic(listPage, sourceName, pageNum, currentUrl, siteConfig.getListSelector());
                 log.warn("[{}] 第{}页因验证码拦截未能获取列表，停止该栏目翻页", sourceName, pageNum);
+                if (failedListPages != null && pageNum == 1) {
+                    failedListPages.add(sourceName + " | " + currentUrl + " | 验证码拦截");
+                }
                 break;
             }
 
