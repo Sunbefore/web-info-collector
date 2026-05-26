@@ -2,6 +2,7 @@ package com.info.collector;
 
 import cn.hutool.core.date.DateUtil;
 import com.info.collector.service.CollectorService;
+import com.info.collector.config.CollectorProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -29,6 +30,9 @@ public class WebInfoCollectorApplication implements CommandLineRunner {
 
     @Resource
     private CollectorService collectorService;
+
+    @Resource
+    private CollectorProperties properties;
 
     @Resource
     private ConfigurableApplicationContext applicationContext;
@@ -60,7 +64,7 @@ public class WebInfoCollectorApplication implements CommandLineRunner {
         System.setProperty("collector.schedule.enabled", "false");
 
         // 解析参数
-        String keyword = "反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理,数字纪检";
+        String keyword = properties.getSchedule().getKeyword();
         int days = 1;
         for (String arg : args) {
             if (arg.startsWith("--keyword=")) {

@@ -88,6 +88,7 @@ public class CollectorProperties {
     public static class ScheduleConfig {
         private String cron = "0 0 6 * * ?";
         private int intervalDays = 1;
+        private String keyword = "反洗钱,模型,反诈,金融法,全面风险管理,操作风险管理,市场风险管理,数字纪检";
     }
 
     @Data

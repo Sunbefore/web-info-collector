@@ -36,7 +36,7 @@ public class CollectScheduler {
             Date startDate = DateUtil.offsetDay(new Date(), -intervalDays);
             String startStr = DateUtil.format(startDate, "yyyy-MM-dd");
             String endStr = DateUtil.format(endDate, "yyyy-MM-dd");
-            collectorService.collect(null, null, true, startStr, endStr);
+            collectorService.collect(properties.getSchedule().getKeyword(), null, true, startStr, endStr);
         } catch (Exception e) {
             log.error("定时采集任务执行异常: {}", e.getMessage(), e);
         }
